@@ -29,7 +29,7 @@ multipass launch --name ${WORKER_NAME} \
   --cpus ${WORKER_CPUS} \
   --disk ${DISK_SIZE} \
   22.04 \
-  -vvvv
+  -v
 ) 1> ./launch_${WORKER_NAME}_out.txt 2>&1
 # Wait for VM to boot and network to stabilize
 echo "⏳ Waiting for VM to be ready..."

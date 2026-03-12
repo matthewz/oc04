@@ -30,7 +30,7 @@ multipass launch --name ${MASTER_NAME} \
   --cpus ${MASTER_CPUS} \
   --disk ${DISK_SIZE} \
   22.04 \
-  -vvvv
+  -v
 ) 1> ./launch_${MASTER_NAME}_out.txt 2>&1
 #
 #

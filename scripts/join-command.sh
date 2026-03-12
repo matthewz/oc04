@@ -1,3 +1,3 @@
 #!/bin/bash
 set -e
-sudo kubeadm join 192.168.2.94:6443 --token gxcnyc.bhhkt4ud6gedff5f --discovery-token-ca-cert-hash sha256:c52a319c1141fae20d15eaa4645d8db884be0b36f5bc93db13e4469ce518a0d6 
+sudo kubeadm join 192.168.2.97:6443 --token a37tps.ve08508q9krwtf6h --discovery-token-ca-cert-hash sha256:492036bf8c9fc2b7a7e96b5f7028a642733ae6a5ffd09411d5298d61e38e60c9 
