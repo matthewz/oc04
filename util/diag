@@ -1,0 +1,17 @@
+# Run this - it checks everything at once
+echo "=== Multipass VMs ==="
+multipass list
+echo ""
+echo "=== Pod Status ==="
+kubectl get pods -n demo -o wide
+echo ""
+echo "=== Services ==="
+kubectl get svc -n demo
+echo ""
+echo "=== Backend Pod Logs ==="
+kubectl logs -n demo -l app=backend --tail=20
+echo ""
+echo "=== Backend Readiness ==="
+kubectl get pods -n demo -l app=backend \
+  -o jsonpath='{range .items[*]}{.metadata.name}{" Ready: "}{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}'
+echo ""

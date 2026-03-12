@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>K8s Voting Demo</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; text-align: center; }
+    button { padding: 15px 30px; margin: 10px; font-size: 18px; cursor: pointer; border-radius: 8px; border: none; transition: opacity 0.2s; }
+    button:hover { opacity: 0.8; }
+    #cats { background: #ff6b6b; color: white; }
+    #dogs { background: #4ecdc4; color: white; }
+    #results { margin-top: 30px; font-size: 20px; font-weight: bold; }
+    .pod-info { color: #888; font-size: 12px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <!-- Added Voting Emoji to Header -->
+  <h1>🗳️ Cast Your Vote!</h1>
+  
+  <button id="cats" onclick="vote('cats')">🐱 Cats ✅</button>
+  <button id="dogs" onclick="vote('dogs')">🐶 Dogs ✅</button>
+  
+  <div id="results">Loading...</div>
+  <div class="pod-info" id="pod-info"></div>
+  <script>
+    const API = `${window.location.protocol}//${window.location.hostname}:30500`;
+    async function vote(item) {
+      try {
+        const r = await fetch(`${API}/vote/${item}`, {method: "POST"});
+        const d = await r.json();
+        document.getElementById("pod-info").innerText = `Served by pod: ${d.served_by}`;
+        getVotes();
+      } catch (err) {
+        console.error("Voting failed", err);
+      }
+    }
+    async function getVotes() {
+      try {
+        const r = await fetch(`${API}/votes`);
+        const d = await r.json();
+        const res = d.results;
+        // Added the ballot box emoji to the results display as well
+        document.getElementById("results").innerHTML =
+          `📊 Results:<br>
+           🐱 Cats: ${res.cats||0} | 🐶 Dogs: ${res.dogs||0}<br>
+           <small style="font-weight:normal; font-size: 14px;">Backend pod: ${d.served_by}</small>`;
+      } catch (err) {
+        document.getElementById("results").innerText = "❌ Error connecting to backend.";
+      }
+    }
+    setInterval(getVotes, 3000);
+    getVotes();
+  </script>
+</body>
+</html>

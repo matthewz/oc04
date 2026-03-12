@@ -1,0 +1,18 @@
+set -x
+tf destroy --auto-approve
+set +x
+(
+set -x
+rm ./out/*.txt
+rm -rf ./.terraform*
+rm -rf terraform*
+set +x
+) \
+2> /dev/null
+set -x
+tf fmt
+tf init
+tf plan -out=./output.tfplan
+tf show -no-color ./output.tfplan > ./tfplan.txt 
+tf apply --auto-approve ./output.tfplan
+set +x
