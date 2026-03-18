@@ -9,3 +9,4 @@ set -x
 #kubectl apply -f https://raw.githubusercontent.com/longhorn/longhorn/v1.5.3/deploy/longhorn.yaml
 kubectl apply -f https://raw.githubusercontent.com/longhorn/longhorn/master/deploy/longhorn.yaml
 set +x
+echo "kubectl port-forward -n longhorn-system svc/longhorn-frontend 8080:80"

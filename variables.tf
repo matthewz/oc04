@@ -21,7 +21,7 @@ variable "worker_cpus" {
 variable "disk_size" {
   description = "Disk size for all nodes"
   type        = string
-  default     = "5G"
+  default     = "20G"
 }
 variable "k8s_version" {
   description = "Kubernetes version to install"
