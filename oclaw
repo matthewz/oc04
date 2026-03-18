@@ -3,7 +3,7 @@
 export INSTANCE="oclaw01"
 
 set -x
-kubectl delete namespace ${INSTANCE} 2> /dev/null
+#kubectl delete namespace ${INSTANCE} 2> /dev/null
 kubectl create namespace ${INSTANCE}
 kubectl config set-context --current --namespace=${INSTANCE}
 set +x
@@ -36,12 +36,9 @@ data:
     {
       "agents": {
         "defaults": {
-          "workspace": "/home/${INSTANCE}/.${INSTANCE}/workspace",
+          "workspace": "/home/node/.openclaw/workspace",
           "model": {
-            "primary": "anthropic/claude-sonnet-4-20250514"
-          },
-          "models": {
-            "anthropic/claude-sonnet-4-20250514": {}
+            "primary": "anthropic/claude-3-5-sonnet-20240620"
           }
         }
       },
@@ -52,7 +49,7 @@ data:
           "token": "YOUR_GATEWAY_TOKEN_HERE"
         },
         "port": 18789,
-        "bind": "0.0.0.0"
+        "bind": "lan"
       },
       "auth": {
         "profiles": {
@@ -66,13 +63,6 @@ data:
         "discord": {
           "enabled": true,
           "token": "YOUR_DISCORD_BOT_TOKEN"
-        }
-      },
-      "plugins": {
-        "entries": {
-          "discord": {
-            "enabled": true
-          }
         }
       }
     }
@@ -118,7 +108,7 @@ spec:
     - ReadWriteOnce
   resources:  
     requests:
-      storage: 10Gi
+      storage: 5Gi
   storageClassName: longhorn  # ← updated!
 EOF
 set +x
@@ -167,12 +157,14 @@ spec:
             secretKeyRef:
               name: ${INSTANCE}-secrets
               key: discord-bot-token
+        - name: OPENCLAW_CONFIG_PATH # This tells the app exactly where the file is
+          value: "/home/node/config/openclaw.json"
         volumeMounts:
         - name: config
-          mountPath: /home/${INSTANCE}/.${INSTANCE}/${INSTANCE}.json
+          mountPath: /home/node/config/openclaw.json
           subPath: ${INSTANCE}.json
         - name: workspace
-          mountPath: /home/${INSTANCE}/.${INSTANCE}/workspace
+          mountPath: /home/node/.openclaw
         resources:
           requests:
             memory: "512Mi"

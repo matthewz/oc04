@@ -1,5 +1,4 @@
 . util/k8s-helpers.sh
-kubectl apply -f https://raw.githubusercontent.com/longhorn/longhorn/v1.5.3/deploy/longhorn.yaml
 . util/start-k8s-dashboard.sh
 . util/get-k8s-access-token.sh 
 . util/install-k8s-metrics-server.sh 

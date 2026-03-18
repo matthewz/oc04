@@ -76,6 +76,8 @@ set -x
 sudo apt-get install -y open-iscsi nfs-common
 sudo systemctl enable iscsid
 sudo systemctl start iscsid
+sleep 10
+sudo systemctl status iscsid
 set +x
 
 echo '📦 Installing Kubernetes packages...'
