@@ -71,6 +71,13 @@ sudo systemctl restart containerd
 sudo systemctl enable containerd
 set +x
 
+echo '# Installing longhorn dependencies'
+set -x
+sudo apt-get install -y open-iscsi nfs-common
+sudo systemctl enable iscsid
+sudo systemctl start iscsid
+set +x
+
 echo '📦 Installing Kubernetes packages...'
 echo '# Add Kubernetes apt repository'
 set -x

@@ -1,0 +1,268 @@
+#### Simple Open Claw infrastructure
+
+export INSTANCE="oclaw01"
+
+set -x
+kubectl delete namespace ${INSTANCE} 2> /dev/null
+kubectl create namespace ${INSTANCE}
+kubectl config set-context --current --namespace=${INSTANCE}
+set +x
+echo ""
+
+#set -x
+#kubectl delete -n ${INSTANCE} configmap ${INSTANCE}-config 2> /dev/null 
+#set +x
+
+###
+echo "🚀 Creating....(nothing)...just a placeholder"
+set -x
+cat <<EOF | kubectl apply -f -
+EOF
+set +x
+echo ""
+
+###
+echo "🚀 Creating Open Claw Configmap..."
+set -x
+cat <<EOF | kubectl apply -f -
+# configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${INSTANCE}-config
+  namespace: ${INSTANCE}
+data:
+  ${INSTANCE}.json: |
+    {
+      "agents": {
+        "defaults": {
+          "workspace": "/home/${INSTANCE}/.${INSTANCE}/workspace",
+          "model": {
+            "primary": "anthropic/claude-sonnet-4-20250514"
+          },
+          "models": {
+            "anthropic/claude-sonnet-4-20250514": {}
+          }
+        }
+      },
+      "gateway": {
+        "mode": "local",
+        "auth": {
+          "mode": "token",
+          "token": "YOUR_GATEWAY_TOKEN_HERE"
+        },
+        "port": 18789,
+        "bind": "0.0.0.0"
+      },
+      "auth": {
+        "profiles": {
+          "anthropic:default": {
+            "provider": "anthropic",
+            "mode": "token"
+          }
+        }
+      },
+      "channels": {
+        "discord": {
+          "enabled": true,
+          "token": "YOUR_DISCORD_BOT_TOKEN"
+        }
+      },
+      "plugins": {
+        "entries": {
+          "discord": {
+            "enabled": true
+          }
+        }
+      }
+    }
+EOF
+set +x
+echo ""
+
+#echo "Press Enter to continue..." ; read
+
+###
+echo "🚀 Creating Secret..."
+set -x
+cat <<EOF | kubectl apply -f -
+# secrets.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${INSTANCE}-secrets
+  namespace: ${INSTANCE}
+type: Opaque
+stringData:
+  anthropic-api-key: "YOUR_ANTHROPIC_API_KEY"
+  discord-bot-token: "YOUR_DISCORD_BOT_TOKEN"
+  gateway-token: "YOUR_GATEWAY_TOKEN"
+EOF
+set +x
+echo ""
+
+#echo "Press Enter to continue..." ; read
+
+###         
+echo "🚀 Creating PVC..."
+set -x
+cat <<EOF | kubectl apply -f -
+# pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: 
+  name: ${INSTANCE}-workspace
+  namespace: ${INSTANCE}
+spec:     
+  accessModes:
+    - ReadWriteOnce
+  resources:  
+    requests:
+      storage: 10Gi
+  storageClassName: longhorn  # ← updated!
+EOF
+set +x
+echo ""
+
+#echo "Press Enter to continue..." ; read
+
+###
+echo "🚀 Creating Deployment..."
+set -x
+cat <<EOF | kubectl apply -f -
+# deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${INSTANCE}
+  namespace: ${INSTANCE}
+  labels:
+    app: ${INSTANCE}
+spec:
+  replicas: 1  # OpenClaw is designed for single instance
+  selector:
+    matchLabels:
+      app: ${INSTANCE}
+  template:
+    metadata:
+      labels:
+        app: ${INSTANCE}
+    spec:
+      containers:
+      - name: ${INSTANCE}
+        image: ghcr.io/openclaw/openclaw:latest  # Use specific tag in production
+        ports:
+        - containerPort: 18789
+          name: gateway
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ${INSTANCE}-secrets
+              key: anthropic-api-key
+        - name: DISCORD_BOT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: ${INSTANCE}-secrets
+              key: discord-bot-token
+        volumeMounts:
+        - name: config
+          mountPath: /home/${INSTANCE}/.${INSTANCE}/${INSTANCE}.json
+          subPath: ${INSTANCE}.json
+        - name: workspace
+          mountPath: /home/${INSTANCE}/.${INSTANCE}/workspace
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 18789
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 18789
+          initialDelaySeconds: 15
+          periodSeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: ${INSTANCE}-config
+      - name: workspace
+        persistentVolumeClaim:
+          claimName: ${INSTANCE}-workspace
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+EOF
+set +x
+echo ""
+
+echo "Press Enter to continue..." ; read
+
+###       
+echo "🚀 Creating Service..."
+cat <<EOF | kubectl apply -f - 
+# service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${INSTANCE}-service
+  namespace: ${INSTANCE}
+  labels:
+    app: ${INSTANCE}
+spec:
+  selector:
+    app: ${INSTANCE}
+  ports:
+  - name: gateway
+    port: 18789
+    targetPort: 18789
+  type: ClusterIP
+EOF
+echo ""   
+
+echo "Press Enter to continue..." ; read
+
+###
+echo "🚀 Creating Ingress..."
+set -x
+cat <<EOF | kubectl apply -f -
+# ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ${INSTANCE}-ingress
+  namespace: ${INSTANCE}
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    # Add TLS/SSL annotations as needed
+spec:
+  rules:
+  #- host: openclaw.yourdomain.com  # Add this to use A Record type translation in DNS
+  #  http
+  -  http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ${INSTANCE}-service
+            port:
+              number: 18789
+EOF
+set +x
+echo ""
+
+#echo "Patch backend service to NodePort..."
+#kubectl patch svc backend -n demo -p '{"spec":{"type":"NodePort","ports":[{"port":5000,"targetPort":5000,"nodePort":30500}]}}'
+

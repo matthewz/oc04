@@ -11,17 +11,17 @@ variable "master_cpus" {
 variable "worker_memory" {
   description = "Memory allocation for worker nodes"
   type        = string
-  default     = "1G"
+  default     = "2G"
 }
 variable "worker_cpus" {
   description = "CPU allocation for worker nodes"
   type        = number
-  default     = 1
+  default     = 2
 }
 variable "disk_size" {
   description = "Disk size for all nodes"
   type        = string
-  default     = "20G"
+  default     = "5G"
 }
 variable "k8s_version" {
   description = "Kubernetes version to install"
