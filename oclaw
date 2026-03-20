@@ -25,7 +25,6 @@ echo ""
 echo "🚀 Creating Open Claw Configmap..."
 set -x
 cat <<EOF | kubectl apply -f -
-# configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -44,14 +43,14 @@ data:
       },
       "gateway": {
         "mode": "local",
+        "bind": "lan",
+        "port": 18789,
         "auth": {
           "mode": "token",
-          "token": "YOUR_GATEWAY_TOKEN_HERE"
+          "token": "abc12345"
         },
-        "port": 18789,
-        "bind": "lan", 
         "controlUi": {
-          "allowedOrigins": ["http://localhost:18789", "http://127.0.0.1:18789"]
+          "allowedOrigins": ["*"]
         }
       },
       "auth": {
@@ -89,7 +88,7 @@ type: Opaque
 stringData:
   anthropic-api-key: "YOUR_ANTHROPIC_API_KEY"
   discord-bot-token: "YOUR_DISCORD_BOT_TOKEN"
-  gateway-token: "YOUR_GATEWAY_TOKEN"
+  gateway-token:     "abc12345"
 EOF
 set +x
 echo ""
@@ -112,7 +111,7 @@ spec:
   resources:  
     requests:
       storage: 5Gi
-  storageClassName: longhorn  # ← updated!
+  storageClassName: longhorn-static
 EOF
 set +x
 echo ""
@@ -181,7 +180,7 @@ spec:
             memory: "512Mi"
             cpu: "250m"
           limits:
-            memory: "1Gi"
+            memory: "2Gi"
             cpu: "1"
         livenessProbe:
           httpGet:
@@ -262,7 +261,3 @@ spec:
 EOF
 set +x
 echo ""
-
-#echo "Patch backend service to NodePort..."
-#kubectl patch svc backend -n demo -p '{"spec":{"type":"NodePort","ports":[{"port":5000,"targetPort":5000,"nodePort":30500}]}}'
-
