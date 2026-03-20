@@ -1,0 +1,8 @@
+.DS_Store
+.terraform* 
+launch_k8s-* 
+out/*
+output.tfplan
+terraform*
+tfplan.txt
+util/k8s-helpers.sh
