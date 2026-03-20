@@ -49,7 +49,10 @@ data:
           "token": "YOUR_GATEWAY_TOKEN_HERE"
         },
         "port": 18789,
-        "bind": "lan"
+        "bind": "lan", 
+        "controlUi": {
+          "allowedOrigins": ["http://localhost:18789", "http://127.0.0.1:18789"]
+        }
       },
       "auth": {
         "profiles": {
@@ -120,7 +123,6 @@ echo ""
 echo "🚀 Creating Deployment..."
 set -x
 cat <<EOF | kubectl apply -f -
-# deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -129,18 +131,27 @@ metadata:
   labels:
     app: ${INSTANCE}
 spec:
-  replicas: 1  # OpenClaw is designed for single instance
+  replicas: 1
   selector:
     matchLabels:
       app: ${INSTANCE}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0        # Never spin up extra pod during update
+      maxUnavailable: 1  # Take down old pod BEFORE starting new one
   template:
     metadata:
       labels:
         app: ${INSTANCE}
     spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
       containers:
       - name: ${INSTANCE}
-        image: ghcr.io/openclaw/openclaw:latest  # Use specific tag in production
+        image: ghcr.io/openclaw/openclaw:latest
         ports:
         - containerPort: 18789
           name: gateway
@@ -157,7 +168,7 @@ spec:
             secretKeyRef:
               name: ${INSTANCE}-secrets
               key: discord-bot-token
-        - name: OPENCLAW_CONFIG_PATH # This tells the app exactly where the file is
+        - name: OPENCLAW_CONFIG_PATH
           value: "/home/node/config/openclaw.json"
         volumeMounts:
         - name: config
@@ -170,20 +181,22 @@ spec:
             memory: "512Mi"
             cpu: "250m"
           limits:
-            memory: "2Gi"
-            cpu: "1000m"
+            memory: "1Gi"
+            cpu: "1"
         livenessProbe:
           httpGet:
             path: /health
             port: 18789
           initialDelaySeconds: 30
           periodSeconds: 10
+          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /health
             port: 18789
           initialDelaySeconds: 15
           periodSeconds: 5
+          failureThreshold: 3
       volumes:
       - name: config
         configMap:
@@ -191,10 +204,6 @@ spec:
       - name: workspace
         persistentVolumeClaim:
           claimName: ${INSTANCE}-workspace
-      securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
 EOF
 set +x
 echo ""
@@ -239,9 +248,8 @@ metadata:
     nginx.ingress.kubernetes.io/rewrite-target: /
     # Add TLS/SSL annotations as needed
 spec:
+  ingressClassName: nginx
   rules:
-  #- host: openclaw.yourdomain.com  # Add this to use A Record type translation in DNS
-  #  http
   -  http:
       paths:
       - path: /

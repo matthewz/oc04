@@ -1,12 +1,58 @@
 . ./util/k8s-helpers.sh
 ./scripts/install-longhorn.sh k8s-master
-echo "Press Enter to continue..." ; read
+#echo "Press Enter to continue..." ; read
 ./scripts/install-longhorn.sh k8s-worker1
-echo "Press Enter to continue..." ; read
+#echo "Press Enter to continue..." ; read
 ./scripts/install-longhorn.sh k8s-worker2
-echo "Press Enter to continue..." ; read
+#echo "Press Enter to continue..." ; read
 set -x
 #kubectl apply -f https://raw.githubusercontent.com/longhorn/longhorn/v1.5.3/deploy/longhorn.yaml
 kubectl apply -f https://raw.githubusercontent.com/longhorn/longhorn/master/deploy/longhorn.yaml
 set +x
+
+###
+echo "🚀 Longhorn StorageClass and other settings..."
+set -x
+cat <<EOF | kubectl apply -f -
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: longhorn-static
+provisioner: driver.longhorn.io
+allowVolumeExpansion: true
+parameters:
+  numberOfReplicas: "1" # This ensures every new PVC only asks for 1 replica
+  staleReplicaTimeout: "1440" # 24 hours
+---
+apiVersion: longhorn.io/v1beta2
+kind: Setting
+metadata:
+  name: replica-soft-anti-affinity
+  namespace: longhorn-system
+value: "true"
+---
+apiVersion: longhorn.io/v1beta2
+kind: Setting
+metadata:
+  name: storage-over-provisioning-percentage
+  namespace: longhorn-system
+value: "500"
+---
+apiVersion: longhorn.io/v1beta2
+kind: Setting
+metadata:
+  name: storage-minimal-available-percentage
+  namespace: longhorn-system
+value: "10"
+---
+apiVersion: longhorn.io/v1beta2
+kind: Setting
+metadata:
+  name: default-replica-count
+  namespace: longhorn-system
+value: "1"  # Set to 1 for single-node, 2 for small clusters
+EOF
+set +x
+echo 
+
 echo "kubectl port-forward -n longhorn-system svc/longhorn-frontend 8080:80"

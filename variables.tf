@@ -1,7 +1,7 @@
 variable "master_memory" {
   description = "Memory allocation for master node"
   type        = string
-  default     = "2G"
+  default     = "4G"
 }
 variable "master_cpus" {
   description = "CPU allocation for master node"
@@ -11,7 +11,7 @@ variable "master_cpus" {
 variable "worker_memory" {
   description = "Memory allocation for worker nodes"
   type        = string
-  default     = "2G"
+  default     = "4G"
 }
 variable "worker_cpus" {
   description = "CPU allocation for worker nodes"

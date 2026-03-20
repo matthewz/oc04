@@ -14,8 +14,7 @@ echo ""
 ) \
 2> /dev/null
 
-#echo "Press Enter to continue..."
-#read
+#echo "Press Enter to continue..." ; read
 
 ### 
 echo "🚀 Creating kubernetes-dashboard namespace..."
@@ -50,8 +49,7 @@ kubectl -n kubernetes-dashboard get svc
 set +x
 echo ""
 
-#echo "Press Enter to continue..."
-#read
+#echo "Press Enter to continue..." ; read
 
 ###
 echo "🚀 Create an Admin Service Account..."
@@ -103,8 +101,7 @@ echo "🚀 Retrieve the login token secret ... "
 kubectl -n kubernetes-dashboard get secret admin-user-token -o jsonpath="{.data.token}" | base64 --decode
 echo ""
 
-#echo "Press Enter to continue..."
-#read
+#echo "Press Enter to continue..." ; read
 
 kubectl patch deployment kubernetes-dashboard \
   -n kubernetes-dashboard \
@@ -127,8 +124,7 @@ kubectl logs -n kubernetes-dashboard \
   deployment/kubernetes-dashboard
 set +x
 
-#echo "Press Enter to continue..."
-#read
+#echo "Press Enter to continue..." ; read
 
 ###
 echo "🚀 Start the proxy..."
@@ -142,8 +138,7 @@ sleep 10
 echo "Dashboard will open at: http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/"
 echo ""
 
-#echo "Press Enter to continue..."
-#read
+#echo "Press Enter to continue..." ; read
 
 ###
 echo "🚀 Creating kubernetes-dashboard nodeport..."
@@ -165,8 +160,7 @@ spec:
 EOF
 echo ""
 
-#echo "Press Enter to continue..."
-#read
+#echo "Press Enter to continue..." ; read
 
 echo "🚀 Get nodeport ip, and then, access via browser: e.g. https://<NODE_IP>:30443 ..."
 set -x
@@ -174,8 +168,7 @@ kubectl get nodes -o wide
 set +x
 echo ""
 
-#echo "Press Enter to continue..."
-#read
+#echo "Press Enter to continue..." ; read
 
 echo "🚀 Starting port forwarding..."
 set -x
