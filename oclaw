@@ -213,7 +213,7 @@ EOF
 set +x
 echo ""
 
-echo "Press Enter to continue..." ; read
+#echo "Press Enter to continue..." ; read
 
 ###       
 echo "🚀 Creating Service..."
@@ -237,7 +237,7 @@ spec:
 EOF
 echo ""   
 
-echo "Press Enter to continue..." ; read
+#echo "Press Enter to continue..." ; read
 
 ###
 echo "🚀 Creating Ingress..."

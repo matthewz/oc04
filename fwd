@@ -1,0 +1,15 @@
+
+
+kill -9 $(lsof -t -i :8001) 
+kill -9 $(lsof -t -i :8080) 
+kill -9 $(lsof -t -i :8443)
+kill -9 $(lsof -t -i :18789) 
+kill -9 $(lsof -t -i :32000)
+
+set -x
+kubectl proxy                                                                    1> /tmp/kubectl_proxy_out.txt 2>&1 & 
+kubectl port-forward -n longhorn-system      svc/longhorn-frontend    8080:80    1> /tmp/longhorn_out.txt      2>&1 & 
+kubectl port-forward -n kubernetes-dashboard svc/kubernetes-dashboard 8443:443   1> /tmp/8443.txt              2>&1 & 
+kubectl port-forward -n oclaw01              svc/oclaw01-service     18789:18789 1> /tmp/oclaw01_out.txt       2>&1 & 
+kubectl port-forward -n jenkins              svc/jenkins-service     32000:8080  1> /tmp/jenkins_out.txt       2>&1 & 
+set +x
