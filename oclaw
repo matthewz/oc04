@@ -88,7 +88,7 @@ type: Opaque
 stringData:
   anthropic-api-key: "YOUR_ANTHROPIC_API_KEY"
   discord-bot-token: "YOUR_DISCORD_BOT_TOKEN"
-  gateway-token:     "abc12345"
+  gateway-token: "abc12345"
 EOF
 set +x
 echo ""
@@ -261,3 +261,91 @@ spec:
 EOF
 set +x
 echo ""
+
+###
+echo "🚀 Creating NetworkPolicy..."
+set -x
+cat <<EOF | kubectl apply -f -
+# network-policy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ${INSTANCE}-network-policy
+  namespace: ${INSTANCE}
+spec:
+  podSelector:
+    matchLabels:
+      app: ${INSTANCE}
+  policyTypes:
+  - Ingress
+  - Egress
+  # -------------------------------------------------------
+  # INGRESS: Who is allowed to TALK TO OpenClaw
+  # -------------------------------------------------------
+  ingress:
+    # Only allow traffic from your ingress controller
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            name: ingress-nginx
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: ingress-nginx
+      ports:
+      - protocol: TCP
+        port: 18789
+    # Allow pods within the SAME namespace to talk to each other
+    # e.g. if openclaw has multiple internal services
+    - from:
+      - podSelector:
+          matchLabels:
+            app: ${INSTANCE}
+      ports:
+      - protocol: TCP
+        port: 18789
+  # -------------------------------------------------------
+  # EGRESS: Who OpenClaw is allowed to TALK TO
+  # -------------------------------------------------------
+  egress:
+    # Allow DNS lookups - without this NOTHING works
+    # Think of DNS like a phone book - you need it to find anyone
+    - to:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: kube-system
+        podSelector:
+          matchLabels:
+            k8s-app: kube-dns
+      ports:
+      - protocol: UDP
+        port: 53
+      - protocol: TCP
+        port: 53
+    # Allow talking to OpenAI API
+    # Replace with actual IP range from: dig +short api.openai.com
+    - to:
+      - ipBlock:
+          cidr: 104.18.0.0/16   # example - verify current OpenAI IPs
+      ports:
+      - protocol: TCP
+        port: 443
+    # Allow talking to your own database if it's in-cluster
+    - to:
+      - podSelector:
+          matchLabels:
+            app: ${INSTANCE}-db      # adjust to match your DB pod label
+      ports:
+      - protocol: TCP
+        port: 5432                # adjust to your DB port
+    # Allow talking to any other internal openclaw services
+    - to:
+      - podSelector:
+          matchLabels:
+            app: ${INSTANCE}
+      ports:
+      - protocol: TCP
+        port: 18789
+EOF
+set +x
+echo ""
+

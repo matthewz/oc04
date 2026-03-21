@@ -52,14 +52,18 @@ echo ""
 #echo "Press Enter to continue..." ; read
 
 ###
-echo "🚀 Create an Admin Service Account..."
-cat <<EOF | kubectl apply -f -
+echo "🚀 Create ServiceAccount..."
+kubectl apply -f - <<EOF
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: admin-user
   namespace: kubernetes-dashboard
----
+EOF
+echo
+
+echo "🚀 Create ClusterRoleBinding..."
+kubectl apply -f - <<EOF
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -73,18 +77,10 @@ subjects:
   name: admin-user
   namespace: kubernetes-dashboard
 EOF
-echo ""
+echo 
 
-###
-echo "🚀 Create a login token..."
-set -x
-kubectl -n kubernetes-dashboard create token admin-user --duration=87600h
-set +x
-echo ""
-
-###
-echo "🚀 Create a secret for the login token..."
-cat <<EOF | kubectl apply -f -
+echo "🚀 Create Secret..."
+kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Secret
 metadata:
@@ -94,19 +90,47 @@ metadata:
     kubernetes.io/service-account.name: admin-user
 type: kubernetes.io/service-account-token
 EOF
-echo ""
+echo
 
-###
-echo "🚀 Retrieve the login token secret ... "
-kubectl -n kubernetes-dashboard get secret admin-user-token -o jsonpath="{.data.token}" | base64 --decode
-echo ""
+echo "🚀 Check all resources..."
+set -x
+kubectl get serviceaccount admin-user -n kubernetes-dashboard
+kubectl get clusterrolebinding admin-user
+kubectl get secret admin-user-token -n kubernetes-dashboard
+set +x
 
 #echo "Press Enter to continue..." ; read
 
+set -x
+kubectl get secret admin-user-token \
+  -n kubernetes-dashboard \
+  -o jsonpath="{.data.token}" | base64 --decode
+set +x
+
+# Save it to a file so you don't lose it
+kubectl get secret admin-user-token \
+  -n kubernetes-dashboard \
+  -o jsonpath="{.data.token}" | base64 --decode > ./dashboard-token.txt
+echo "Your token is saved in dashboard-token.txt"
+
+set -x
 kubectl patch deployment kubernetes-dashboard \
   -n kubernetes-dashboard \
   --type="json" \
   -p='[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--enable-skip-login"}]'
+set +x
+
+set -x
+kubectl patch deployment kubernetes-dashboard \
+  -n kubernetes-dashboard \
+  --type="json" \
+  -p='[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--token-ttl=288000"}]'
+set +x
+
+# Get the token and decode it at jwt.io or use this command
+kubectl get secret admin-user-token \
+  -n kubernetes-dashboard \
+  -o jsonpath="{.data.token}" | base64 --decode | cut -d. -f2 | base64 --decode 2>/dev/null
 
 echo "# Check the deployment args..."
 set -x
@@ -129,12 +153,11 @@ set +x
 ###
 echo "🚀 Start the proxy..."
 set -x
-kill -9 $(lsof -t -i :8001)
-kubectl proxy &
+echo "kill -9 $(lsof -t -i :8001)"
+echo "kubectl proxy &"
 set +x
 
 echo "Please wait a few secs..."
-sleep 10
 echo "Dashboard will open at: http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/"
 echo ""
 
@@ -172,8 +195,8 @@ echo ""
 
 echo "🚀 Starting port forwarding..."
 set -x
-kill -9 $(lsof -t -i :8443)
-kubectl port-forward -n kubernetes-dashboard svc/kubernetes-dashboard 8443:443 1> /dev/null 2>&1 &
+echo "kill -9 $(lsof -t -i :8443)"
+echo "kubectl port-forward -n kubernetes-dashboard svc/kubernetes-dashboard 8443:443 1> /dev/null 2>&1 &"
 set +x
 echo ""
 
