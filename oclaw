@@ -88,6 +88,7 @@ type: Opaque
 stringData:
   anthropic-api-key: "YOUR_ANTHROPIC_API_KEY"
   discord-bot-token: "YOUR_DISCORD_BOT_TOKEN"
+  slack-bot-token: "xoxb-YOUR_SLACK_BOT_TOKEN"
   gateway-token: "abc12345"
 EOF
 set +x
@@ -167,6 +168,11 @@ spec:
             secretKeyRef:
               name: ${INSTANCE}-secrets
               key: discord-bot-token
+        - name: SLACK_BOT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: ${INSTANCE}-secrets
+              key: slack-bot-token
         - name: OPENCLAW_CONFIG_PATH
           value: "/home/node/config/openclaw.json"
         volumeMounts:
@@ -345,6 +351,12 @@ spec:
       ports:
       - protocol: TCP
         port: 18789
+    - to:
+      - ipBlock:
+          cidr: 0.0.0.0/0
+      ports:
+      - protocol: TCP
+        port: 443
 EOF
 set +x
 echo ""
