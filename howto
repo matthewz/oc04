@@ -1,0 +1,4 @@
+###
+
+kubectl rollout restart -n oclaw01 deployment oclaw01
+

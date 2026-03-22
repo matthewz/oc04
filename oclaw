@@ -3,7 +3,7 @@
 export INSTANCE="oclaw01"
 
 set -x
-#kubectl delete namespace ${INSTANCE} 2> /dev/null
+kubectl delete namespace ${INSTANCE} 2> /dev/null
 kubectl create namespace ${INSTANCE}
 kubectl config set-context --current --namespace=${INSTANCE}
 set +x
@@ -46,8 +46,7 @@ data:
         "bind": "lan",
         "port": 18789,
         "auth": {
-          "mode": "token",
-          "token": "abc12345"
+          "mode": "token"
         },
         "controlUi": {
           "allowedOrigins": ["*"]
@@ -63,8 +62,13 @@ data:
       },
       "channels": {
         "discord": {
+          "enabled": false
+        },
+        "slack": {
           "enabled": true,
-          "token": "YOUR_DISCORD_BOT_TOKEN"
+          "mode": "socket",
+          "botToken": "",
+          "appToken": ""
         }
       }
     }
@@ -88,7 +92,8 @@ type: Opaque
 stringData:
   anthropic-api-key: "YOUR_ANTHROPIC_API_KEY"
   discord-bot-token: "YOUR_DISCORD_BOT_TOKEN"
-  slack-bot-token: "xoxb-YOUR_SLACK_BOT_TOKEN"
+  slack-bot-token: ""
+  slack-app-token: ""
   gateway-token: "abc12345"
 EOF
 set +x
@@ -136,10 +141,7 @@ spec:
     matchLabels:
       app: ${INSTANCE}
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 0        # Never spin up extra pod during update
-      maxUnavailable: 1  # Take down old pod BEFORE starting new one
+    type: Recreate 
   template:
     metadata:
       labels:
@@ -149,6 +151,17 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
+      
+      # Copies your initial JSON template to the writable PVC on the first run
+      initContainers:
+      - name: init-config
+        image: busybox
+        command: ['sh', '-c', 'if [ ! -f /home/node/.openclaw/openclaw.json ]; then cp /tmp/config/${INSTANCE}.json /home/node/.openclaw/openclaw.json; fi; chown 1000:1000 /home/node/.openclaw/openclaw.json']
+        volumeMounts:
+        - name: config-template
+          mountPath: /tmp/config
+        - name: workspace
+          mountPath: /home/node/.openclaw
       containers:
       - name: ${INSTANCE}
         image: ghcr.io/openclaw/openclaw:latest
@@ -173,12 +186,19 @@ spec:
             secretKeyRef:
               name: ${INSTANCE}-secrets
               key: slack-bot-token
+        - name: SLACK_APP_TOKEN        # ADDED THIS: Needed for Socket Mode
+          valueFrom:
+            secretKeyRef:
+              name: ${INSTANCE}-secrets
+              key: slack-app-token
+        - name: OPENCLAW_GATEWAY_TOKEN # Uses your Secret for the Web UI login
+          valueFrom:
+            secretKeyRef:
+              name: ${INSTANCE}-secrets
+              key: gateway-token
         - name: OPENCLAW_CONFIG_PATH
-          value: "/home/node/config/openclaw.json"
+          value: "/home/node/.openclaw/openclaw.json"
         volumeMounts:
-        - name: config
-          mountPath: /home/node/config/openclaw.json
-          subPath: ${INSTANCE}.json
         - name: workspace
           mountPath: /home/node/.openclaw
         resources:
@@ -194,16 +214,14 @@ spec:
             port: 18789
           initialDelaySeconds: 30
           periodSeconds: 10
-          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /health
             port: 18789
           initialDelaySeconds: 15
           periodSeconds: 5
-          failureThreshold: 3
       volumes:
-      - name: config
+      - name: config-template
         configMap:
           name: ${INSTANCE}-config
       - name: workspace
@@ -272,7 +290,6 @@ echo ""
 echo "🚀 Creating NetworkPolicy..."
 set -x
 cat <<EOF | kubectl apply -f -
-# network-policy.yaml
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -285,23 +302,22 @@ spec:
   policyTypes:
   - Ingress
   - Egress
-  # -------------------------------------------------------
-  # INGRESS: Who is allowed to TALK TO OpenClaw
-  # -------------------------------------------------------
   ingress:
-    # Only allow traffic from your ingress controller
+    # 1. Allow Port-Forwarding (Local)
+    - ports:
+      - protocol: TCP
+        port: 18789
+      - protocol: TCP
+        port: 18791
+    # 2. Allow Ingress Controller (REMOVED namespaceSelector for ease of use)
     - from:
-      - namespaceSelector:
-          matchLabels:
-            name: ingress-nginx
-        podSelector:
+      - podSelector:
           matchLabels:
             app.kubernetes.io/name: ingress-nginx
       ports:
       - protocol: TCP
         port: 18789
-    # Allow pods within the SAME namespace to talk to each other
-    # e.g. if openclaw has multiple internal services
+    # 3. Allow pods within the SAME namespace
     - from:
       - podSelector:
           matchLabels:
@@ -309,12 +325,8 @@ spec:
       ports:
       - protocol: TCP
         port: 18789
-  # -------------------------------------------------------
-  # EGRESS: Who OpenClaw is allowed to TALK TO
-  # -------------------------------------------------------
   egress:
-    # Allow DNS lookups - without this NOTHING works
-    # Think of DNS like a phone book - you need it to find anyone
+    # Allow DNS
     - to:
       - namespaceSelector:
           matchLabels:
@@ -327,36 +339,21 @@ spec:
         port: 53
       - protocol: TCP
         port: 53
-    # Allow talking to OpenAI API
-    # Replace with actual IP range from: dig +short api.openai.com
-    - to:
-      - ipBlock:
-          cidr: 104.18.0.0/16   # example - verify current OpenAI IPs
-      ports:
-      - protocol: TCP
-        port: 443
-    # Allow talking to your own database if it's in-cluster
-    - to:
-      - podSelector:
-          matchLabels:
-            app: ${INSTANCE}-db      # adjust to match your DB pod label
-      ports:
-      - protocol: TCP
-        port: 5432                # adjust to your DB port
-    # Allow talking to any other internal openclaw services
-    - to:
-      - podSelector:
-          matchLabels:
-            app: ${INSTANCE}
-      ports:
-      - protocol: TCP
-        port: 18789
+    # Allow all HTTPS traffic (OpenAI, Slack, etc.)
     - to:
       - ipBlock:
           cidr: 0.0.0.0/0
       ports:
       - protocol: TCP
         port: 443
+    # Allow internal DB
+    - to:
+      - podSelector:
+          matchLabels:
+            app: ${INSTANCE}-db
+      ports:
+      - protocol: TCP
+        port: 5432
 EOF
 set +x
 echo ""
