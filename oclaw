@@ -31,13 +31,29 @@ metadata:
   name: ${INSTANCE}-config
   namespace: ${INSTANCE}
 data:
-  ${INSTANCE}.json: |
+  openclaw.json: |
     {
+      "models": {
+        "providers": {
+          "ollama": {
+            "baseUrl": "http://${LOCAL_IP}:11434/v1",
+            "apiKey": "ollama-local",
+            "api": "openai-responses",
+            "models": [
+              {
+                "id": "llama3.1:latest",
+                "name": "Llama 3.1",
+                "contextWindow": 32768,
+              }
+            ]
+          }
+        }
+      },
       "agents": {
         "defaults": {
           "workspace": "/home/node/.openclaw/workspace",
           "model": {
-            "primary": "ollama/llama3.1"
+            "primary": "ollama/llama3.1:latest"
           }
         }
       },
@@ -52,22 +68,7 @@ data:
           "allowedOrigins": ["*"]
         }
       },
-      "auth": {
-        "profiles": {
-          "anthropic:default": {
-            "provider": "anthropic",
-            "mode": "token"
-          },
-          "ollama:default": {
-            "provider": "ollama",
-            "mode": "token"
-          }
-        }
-      },
       "channels": {
-        "discord": {
-          "enabled": false
-        },
         "slack": {
           "enabled": true,
           "mode": "socket",
@@ -94,8 +95,6 @@ metadata:
   namespace: ${INSTANCE}
 type: Opaque
 stringData:
-  anthropic-api-key: "YOUR_ANTHROPIC_API_KEY"
-  discord-bot-token: "YOUR_DISCORD_BOT_TOKEN"
   slack-bot-token: "${SLACK_BOT_TOKEN}"
   slack-app-token: "${SLACK_APP_TOKEN}"
   gateway-token: "abc12345"
@@ -160,7 +159,7 @@ spec:
       initContainers:
       - name: init-config
         image: busybox
-        command: ['sh', '-c', 'cp /tmp/config/${INSTANCE}.json /home/node/.openclaw/openclaw.json; chown 1000:1000 /home/node/.openclaw/openclaw.json']
+        command: ['sh', '-c', 'cp /tmp/config/openclaw.json /home/node/.openclaw/openclaw.json; chown 1000:1000 /home/node/.openclaw/openclaw.json']
         volumeMounts:
         - name: config-template
           mountPath: /tmp/config
@@ -175,20 +174,10 @@ spec:
         env:
         - name: OLLAMA_API_KEY
           value: "ollama-local"
-        - name: ANTHROPIC_BASE_URL
-          value: "http://${LOCAL_IP}:11434/v1"
+        - name: OLLAMA_BASE_URL
+          value: "http://${LOCAL_IP}:11434"
         - name: NODE_ENV
           value: "production"
-        - name: ANTHROPIC_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: ${INSTANCE}-secrets
-              key: anthropic-api-key
-        - name: DISCORD_BOT_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: ${INSTANCE}-secrets
-              key: discord-bot-token
         - name: SLACK_BOT_TOKEN
           valueFrom:
             secretKeyRef:
