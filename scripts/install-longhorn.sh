@@ -24,4 +24,5 @@ set -x
 sudo systemctl status iscsid
 set +x
 echo 'Exit back to host'
-"
+" \
+1> install_longhorn_out.txt 2>&1

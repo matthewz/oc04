@@ -26,7 +26,9 @@ sudo kubeadm init \
   --node-name=${MASTER_NAME}
 set +x
 echo '✅ kubeadm init complete!'
-"
+" \
+1> kubeadm_init_out.txt 2>&1
+
 # Set up kubectl for the ubuntu user
 echo "🔧 Setting up kubectl..."
 multipass exec ${MASTER_NAME} -- bash -c "
@@ -37,7 +39,9 @@ sudo cp -i /etc/kubernetes/admin.conf /home/ubuntu/.kube/config
 sudo chown ubuntu:ubuntu /home/ubuntu/.kube/config
 set +x
 echo '✅ kubectl configured!'
-"
+" \
+1> kubectl_config_out.txt 2>&1
+
 # Install Flannel CNI
 echo "🌐 Installing Flannel CNI..."
 multipass exec ${MASTER_NAME} -- bash -c "
@@ -46,7 +50,9 @@ set -x
 kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
 set +x
 echo '✅ Flannel CNI installed!'
-"
+" \
+1> kubectl_CNI_out.txt 2>&1
+
 # Generate join command
 echo "📝 Generating join command..."
 multipass exec ${MASTER_NAME} -- bash -c "
@@ -58,10 +64,14 @@ echo \"set -e\" >> /home/ubuntu/join-command.sh
 echo \"sudo \${JOIN_COMMAND}\" >> /home/ubuntu/join-command.sh
 chmod +x /home/ubuntu/join-command.sh
 echo '✅ Join command generated!'
-"
+" \
+1> kubectl_join_out.txt 2>&1
+
 # Copy join command to local machine
 echo "💾 Saving join command locally..."
+set -x
 multipass exec ${MASTER_NAME} -- cat /home/ubuntu/join-command.sh > "${OUTPUT_DIR}/scripts/join-command.sh"
+set +x
 chmod +x "${OUTPUT_DIR}/scripts/join-command.sh"
 echo "✅ Master initialization complete!"
 echo "=================================================="

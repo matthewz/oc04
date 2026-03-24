@@ -96,7 +96,8 @@ sudo apt-mark hold kubelet kubeadm kubectl
 set +x
 echo '✅ Kubernetes installation complete on ${VM_NAME}!'
 echo ''
-"
+" \
+1> k8s_common_out.txt 2>&1
 
 echo "✅ Installation complete on ${VM_NAME}!"
 echo "=================================================="

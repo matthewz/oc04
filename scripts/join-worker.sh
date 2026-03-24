@@ -17,6 +17,7 @@ if [ -z "${JOIN_COMMAND}" ]; then
   echo "❌ Error: Failed to get join command"
   exit 1
 fi
+
 echo "🔗 Joining worker to cluster..."
 multipass exec ${WORKER_NAME} -- bash -c "
 set -e
@@ -25,9 +26,12 @@ sudo ${JOIN_COMMAND}
 set +x
 echo '✅ Successfully joined cluster!'
 "
-# Wait a bit for the node to register
+
+echo "Wait a bit for the node to register..."
+set -x
 sleep 10
-# Verify node joined
+set +x
+
 echo "🔍 Verifying node registration..."
 if multipass exec ${MASTER_NAME} -- kubectl get nodes | grep -q "${WORKER_NAME}"; then
   echo "✅ ${WORKER_NAME} successfully joined the cluster!"
