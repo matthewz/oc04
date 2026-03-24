@@ -37,7 +37,7 @@ data:
         "defaults": {
           "workspace": "/home/node/.openclaw/workspace",
           "model": {
-            "primary": "anthropic/claude-3-5-sonnet-20240620"
+            "primary": "ollama/llama3.1"
           }
         }
       },
@@ -56,6 +56,10 @@ data:
         "profiles": {
           "anthropic:default": {
             "provider": "anthropic",
+            "mode": "token"
+          },
+          "ollama:default": {
+            "provider": "ollama",
             "mode": "token"
           }
         }
@@ -156,7 +160,7 @@ spec:
       initContainers:
       - name: init-config
         image: busybox
-        command: ['sh', '-c', 'if [ ! -f /home/node/.openclaw/openclaw.json ]; then cp /tmp/config/${INSTANCE}.json /home/node/.openclaw/openclaw.json; fi; chown 1000:1000 /home/node/.openclaw/openclaw.json']
+        command: ['sh', '-c', 'cp /tmp/config/${INSTANCE}.json /home/node/.openclaw/openclaw.json; chown 1000:1000 /home/node/.openclaw/openclaw.json']
         volumeMounts:
         - name: config-template
           mountPath: /tmp/config
@@ -169,6 +173,10 @@ spec:
         - containerPort: 18789
           name: gateway
         env:
+        - name: OLLAMA_API_KEY
+          value: "ollama-local"
+        - name: ANTHROPIC_BASE_URL
+          value: "http://${LOCAL_IP}:11434/v1"
         - name: NODE_ENV
           value: "production"
         - name: ANTHROPIC_API_KEY
@@ -354,7 +362,13 @@ spec:
       ports:
       - protocol: TCP
         port: 5432
+    # Allow talking to Ollama on the Mac Host
+    - to:
+      - ipBlock:
+          cidr: 192.168.50.116/32
+      ports:
+      - protocol: TCP
+        port: 11434
 EOF
 set +x
 echo ""
-
