@@ -2,8 +2,10 @@
 
 export INSTANCE="oclaw01"
 
+. ./token
+
 set -x
-kubectl delete namespace ${INSTANCE} 2> /dev/null
+#kubectl delete namespace ${INSTANCE} 2> /dev/null
 kubectl create namespace ${INSTANCE}
 kubectl config set-context --current --namespace=${INSTANCE}
 set +x
@@ -62,10 +64,15 @@ data:
         "bind": "lan",
         "port": 18789,
         "auth": {
-          "mode": "token"
+          "mode": "token",
+          "rateLimit": {
+            "maxAttempts": 30,
+            "windowMs": 60000,
+            "lockoutMs": 300000
+          }
         },
         "controlUi": {
-          "allowedOrigins": ["*"]
+          "allowedOrigins": ["http://localhost:18789", "http://192.168.1.50:18789", "http://127.0.0.1:18789"]
         }
       },
       "channels": {
@@ -97,7 +104,7 @@ type: Opaque
 stringData:
   slack-bot-token: "${SLACK_BOT_TOKEN}"
   slack-app-token: "${SLACK_APP_TOKEN}"
-  gateway-token: "abc12345"
+  gateway-token: "${GATEWAY_TOKEN}"
 EOF
 set +x
 echo ""
@@ -153,18 +160,42 @@ spec:
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000
-        fsGroup: 1000
-      
-      # Copies your initial JSON template to the writable PVC on the first run
+        fsGroupChangePolicy: "Always"
+
       initContainers:
       - name: init-config
         image: busybox
-        command: ['sh', '-c', 'cp /tmp/config/openclaw.json /home/node/.openclaw/openclaw.json; chown 1000:1000 /home/node/.openclaw/openclaw.json']
+        # Use 'root' for the init container so it HAS permission to change ownership/chmod
+        securityContext:
+          runAsUser: 0
+        command: ['sh', '-c']
+        args:
+        - |
+          # Create directories
+          mkdir -p /home/node/.openclaw/credentials
+          mkdir -p /home/node/.openclaw/agents/main/sessions
+          
+          # Copy the config file
+          cp /tmp/config/openclaw.json /home/node/.openclaw/openclaw.json
+          
+          # Set strict permissions (700 = owner only, 600 = owner read/write only)
+          chmod 700 /home/node/.openclaw
+          chmod 700 /home/node/.openclaw/credentials
+          chmod 600 /home/node/.openclaw/openclaw.json
+          
+          # Fix the sessions file if it exists
+          if [ -f /home/node/.openclaw/agents/main/sessions/sessions.json ]; then
+            chmod 600 /home/node/.openclaw/agents/main/sessions/sessions.json
+          fi
+          
+          # Crucial: Give ownership back to the 'node' user (1000)
+          chown -R 1000:1000 /home/node/.openclaw
         volumeMounts:
         - name: config-template
           mountPath: /tmp/config
         - name: workspace
           mountPath: /home/node/.openclaw
+
       containers:
       - name: ${INSTANCE}
         image: ghcr.io/openclaw/openclaw:latest
@@ -188,7 +219,7 @@ spec:
             secretKeyRef:
               name: ${INSTANCE}-secrets
               key: slack-app-token
-        - name: OPENCLAW_GATEWAY_TOKEN # Uses your Secret for the Web UI login
+        - name: GATEWAY_TOKEN # Uses your Secret for the Web UI login
           valueFrom:
             secretKeyRef:
               name: ${INSTANCE}-secrets
@@ -221,6 +252,7 @@ spec:
       - name: config-template
         configMap:
           name: ${INSTANCE}-config
+          defaultMode: 0600
       - name: workspace
         persistentVolumeClaim:
           claimName: ${INSTANCE}-workspace
