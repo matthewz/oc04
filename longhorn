@@ -6,8 +6,9 @@
 ./scripts/install-longhorn.sh k8s-worker2
 #echo "Press Enter to continue..." ; read
 set -x
-#kubectl apply -f https://raw.githubusercontent.com/longhorn/longhorn/v1.5.3/deploy/longhorn.yaml
-kubectl apply -f https://raw.githubusercontent.com/longhorn/longhorn/master/deploy/longhorn.yaml
+kubectl delete namespace longhorn-system
+kubectl apply -f https://raw.githubusercontent.com/longhorn/longhorn/v1.5.3/deploy/longhorn.yaml
+#kubectl apply -f https://raw.githubusercontent.com/longhorn/longhorn/master/deploy/longhorn.yaml
 set +x
 
 ###

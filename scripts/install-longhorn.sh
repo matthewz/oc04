@@ -1,7 +1,5 @@
 #!/bin/bash
-
 set -e
-
 # Arguments
 VM_NAME="${1}"
 

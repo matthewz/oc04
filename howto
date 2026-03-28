@@ -2,3 +2,11 @@
 
 kubectl rollout restart -n oclaw01 deployment oclaw01
 
+kubectl describe pod -n oclaw01
+
+kubectl logs -n oclaw01 deployment/oclaw01 --previous
+
+kubectl get events -n oclaw01 --sort-by=.metadata.creationTimestamp
+
+
+

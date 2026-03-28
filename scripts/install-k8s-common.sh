@@ -1,7 +1,5 @@
 #!/bin/bash
-
 set -e
-
 # Arguments
 VM_NAME="${1}"
 K8S_VERSION="${2:-1.28.0-1.1}"
