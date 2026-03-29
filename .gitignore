@@ -8,5 +8,5 @@ terraform*
 tfplan.txt
 util/k8s-helpers.sh
 **/*token*
-scripts/join-command.sh
+**/join-command.sh
 **/*out.txt

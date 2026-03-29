@@ -8,7 +8,7 @@ echo "🔗 Preparing to join $WORKER_NAME to $MASTER_NAME..."
 echo "⏳ Waiting for Master ($MASTER_NAME) to be ready..."
 MAX_RETRIES=30
 COUNT=0
-until multipass exec "$MASTER_NAME" -- sudo kubeadm token list >/dev/null 2>&1
+until multipass exec "$MASTER_NAME" -- sudo kubeadm token list 2> /dev/null
 do
     if [ $COUNT -ge $MAX_RETRIES ]; then
         echo "❌ Master not ready after 5 minutes. Exiting."
