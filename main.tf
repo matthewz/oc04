@@ -43,14 +43,14 @@ resource "null_resource" "k8s_worker2" {
 }
 # A. Generate helper.sh from template after the output dir exists
 resource "local_file" "helper_script" {
-  depends_on = [null_resource.prepare_env]
+  depends_on      = [null_resource.prepare_env]
   filename        = "${local.out_dir}/helper.sh"
-  file_permission = "0755"   # Make it executable right away
+  file_permission = "0755" # Make it executable right away
   content = templatefile("${path.module}/scripts/helper.sh.tpl", {
     # Metadata
     generated_at = timestamp()
     # Paths (absolute so the script works from any working directory)
-    out_dir    = abspath("${local.out_dir}")
+    out_dir     = abspath("${local.out_dir}")
     scripts_dir = abspath("${path.module}/scripts")
     # Names
     master_name  = local.master_name

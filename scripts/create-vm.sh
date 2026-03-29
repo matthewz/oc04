@@ -20,15 +20,17 @@ if [ -n "$VM_EXISTS" ]; then
    set +x
 fi
 echo "Action: Launching $VM_NAME..."
+(
 set -x
 multipass launch --name "$VM_NAME" \
                  --cpus "$CPUS" \
                  --memory "$MEMORY" \
                  --disk "$DISK" \
-                 22.04 \
-1> launch_$VM_NAME_out.txt \
-2>&1
+                 22.04
 set +x
+) \
+1> launch_${VM_NAME}_out.txt \
+2>&1
 # 2. THE BRAKE: Wait for the VM to be fully responsive
 # This prevents 'Connection Refused' during the next Terraform step.
 echo "Waiting for $VM_NAME to be internally ready (Cloud-Init)..."
