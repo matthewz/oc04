@@ -7,5 +7,6 @@ output.tfplan
 terraform*
 tfplan.txt
 util/k8s-helpers.sh
-token
+**/*token*
 scripts/join-command.sh
+**/*out.txt
