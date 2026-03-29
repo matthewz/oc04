@@ -8,3 +8,7 @@ output "verification_commands" {
     kubectl get nodes
   EOT
 }
+output "helper_script_path" {
+  value       = local_file.helper_script.filename
+  description = "Path to the generated helper script"
+}
