@@ -1,4 +1,0 @@
-. util/k8s-helpers.sh
-. util/start-k8s-dashboard.sh
-. util/get-k8s-access-token.sh 
-. util/install-k8s-metrics-server.sh 
