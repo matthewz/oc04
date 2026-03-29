@@ -1,29 +1,57 @@
-. ./util/k8s-helpers.sh
-./scripts/install-longhorn.sh k8s-master
-#echo "Press Enter to continue..." ; read
-./scripts/install-longhorn.sh k8s-worker1
-#echo "Press Enter to continue..." ; read
-./scripts/install-longhorn.sh k8s-worker2
-#echo "Press Enter to continue..." ; read
-set -x
-kubectl delete namespace longhorn-system
-kubectl apply -f https://raw.githubusercontent.com/longhorn/longhorn/v1.5.3/deploy/longhorn.yaml
-#kubectl apply -f https://raw.githubusercontent.com/longhorn/longhorn/master/deploy/longhorn.yaml
-set +x
+echo "🛑 Phase 1: Deep Cleaning Old Longhorn..."
+# 1. Clear the reservations
+kubectl delete pvc --all --all-namespaces
+kubectl delete pv --all
 
-###
-echo "🚀 Longhorn StorageClass and other settings..."
-set -x
+# 2. Force-clear the finalizers (The "Safety Locks")
+# Note: Added a check so it doesn't error out if no volumes exist
+if kubectl -n longhorn-system get volumes.longhorn.io >/dev/null 2>&1; then
+    kubectl -n longhorn-system get volumes.longhorn.io -o json | jq '.items[].metadata.finalizers = []' | kubectl replace --raw /apis/longhorn.io/v1beta2/namespaces/longhorn-system/volumes -f -
+fi
+
+# 3. Trigger the official uninstaller logic
+kubectl -n longhorn-system patch settings.longhorn.io deinstalling-indicator -p '{"value":"true"}' --type=merge 2>/dev/null
+
+# 4. Remove the software
+kubectl delete -f https://raw.githubusercontent.com/longhorn/longhorn/v1.6.2/deploy/longhorn.yaml
+echo "⏳ Waiting 45 seconds for pods to stop and release file locks..."
+
+sleep 45
+
+# 5. Wipe the physical disk "sticky goo" inside the VMs
+echo "🧹 Scrubbing disk storage on all nodes..."
+for node in k8s-master k8s-worker1 k8s-worker2; do
+    multipass exec $node -- sudo rm -rf /var/lib/longhorn/
+done
+
+# 6. Final namespace wipe
+kubectl delete namespace longhorn-system --ignore-not-found=true
+echo "📦 Phase 2: Installing Longhorn v1.6.2..."
+kubectl apply -f https://raw.githubusercontent.com/longhorn/longhorn/v1.6.2/deploy/longhorn.yaml
+
+echo "⏳ Waiting 90 seconds for Longhorn to 'wake up' and register its dictionary (CRDs)..."
+# This is the most important sleep!
+sleep 90 
+
+echo "🚀 Phase 3: Configuring Settings and Backup Jobs..."
+
+# Use a loop to wait for the 'settings' resource to actually exist before applying
+until kubectl get crd settings.longhorn.io >/dev/null 2>&1; do
+  echo "Still waiting for Longhorn dictionary to load..."
+  sleep 5
+done
+
 cat <<EOF | kubectl apply -f -
-kind: StorageClass
+---
 apiVersion: storage.k8s.io/v1
+kind: StorageClass
 metadata:
   name: longhorn-static
 provisioner: driver.longhorn.io
 allowVolumeExpansion: true
 parameters:
-  numberOfReplicas: "1" # This ensures every new PVC only asks for 1 replica
-  staleReplicaTimeout: "1440" # 24 hours
+  numberOfReplicas: "1"
+  staleReplicaTimeout: "1440"
 ---
 apiVersion: longhorn.io/v1beta2
 kind: Setting
@@ -51,9 +79,30 @@ kind: Setting
 metadata:
   name: default-replica-count
   namespace: longhorn-system
-value: "1"  # Set to 1 for single-node, 2 for small clusters
+value: "1"
+---
+apiVersion: longhorn.io/v1beta2
+kind: Setting
+metadata:
+  name: backup-target
+  namespace: longhorn-system
+value: "nfs://192.168.50.13/nfs/longhorn-backups"
+---
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: daily-nas-backup
+  namespace: longhorn-system
+spec:
+  name: daily-nas-backup
+  groups:
+    - default
+  task: backup
+  cron: "0 2 * * *"
+  retain: 7
+  concurrency: 1
 EOF
-set +x
-echo 
+echo
 
-echo "kubectl port-forward -n longhorn-system svc/longhorn-frontend 8080:80"
+echo "✅ Longhorn 1.6.2 is fresh, clean, and configured!"
+
