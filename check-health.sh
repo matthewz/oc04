@@ -31,7 +31,7 @@ kubectl get nodes -o custom-columns='NAME:.metadata.name,STATUS:.status.conditio
 echo -e "\n${BOLD}🚨 Problem Pods (All Namespaces):${NC}"
 PROBLEMS=$(kubectl get pods -A --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers 2>/dev/null)
 if [ -z "$PROBLEMS" ]; then
-    echo -e "  ${GREEN}✅ All pods are healthy.${NC}"
+    echo -e "  ${GREEN}✅ No unhealthy pods were found.${NC}"
 else
     echo -e "${RED}$PROBLEMS${NC}"
 fi
