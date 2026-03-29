@@ -26,3 +26,5 @@ watch "kubectl get pods -A --field-selector=status.phase!=Running"
 
 watch -c ./check-health.sh
 
+watch -n 5 -c ./check-health.sh
+
