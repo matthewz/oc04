@@ -1,12 +1,7 @@
-
 set -x
-
 sudo -v
-
 ./mac_wrangle.sh
-
 (time ./rebuild-k8s.sh)      1> rebuild_k8s_out.txt 2>&1 &
-
 . ./k8s_dashboard_and_metrics 
 . ./demo 
 (time ./rebuild_longhorn.sh) 1> rebuild_longhorn_out.txt 2>&1
