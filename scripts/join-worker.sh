@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+set -o pipefail
 WORKER_NAME=$1
 MASTER_NAME=$2
 echo "🔗 Preparing to join $WORKER_NAME to $MASTER_NAME..."
@@ -17,14 +18,21 @@ do
     sleep 10
     COUNT=$((COUNT+1))
 done
+echo "✅ Master is ready."
 # 2. Check if already joined
-if multipass exec "$WORKER_NAME" -- [ -f /etc/kubernetes/kubelet.conf ]; then
+if multipass exec "$WORKER_NAME" -- sudo test -f /etc/kubernetes/kubelet.conf; then
     echo "✅ $WORKER_NAME is already part of a cluster. Skipping join."
     exit 0
 fi
 # 3. Generate a fresh join command from the Master
-echo "🎟️ Requesting join token from Master..."
-JOIN_CMD=$(multipass exec "$MASTER_NAME" -- sudo kubeadm token create --print-join-command)
+echo "🎟️  Requesting join token from Master..."
+JOIN_CMD=$(multipass exec "$MASTER_NAME" -- sudo kubeadm token create --print-join-command 2>/dev/null | tail -1)
+# Validate we actually got a join command
+if [ -z "$JOIN_CMD" ]; then
+    echo "❌ Failed to retrieve join command from $MASTER_NAME. Exiting."
+    exit 1
+fi
+echo "📋 Join command retrieved successfully."
 # 4. Execute the join on the worker
 echo "🚀 Joining $WORKER_NAME to the cluster..."
 multipass exec "$WORKER_NAME" -- sudo bash -c "$JOIN_CMD"

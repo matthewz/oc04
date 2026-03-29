@@ -2,8 +2,10 @@
 .terraform* 
 launch_k8s-* 
 out/*
+out/
 output.tfplan
 terraform*
 tfplan.txt
 util/k8s-helpers.sh
 token
+scripts/join-command.sh
