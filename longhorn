@@ -7,7 +7,7 @@ set +x
 
 echo "2. Force-clear the finalizers"
 # Note: Added a check so it doesn't error out if no volumes exist
-if kubectl -n longhorn-system get volumes.longhorn.io > /dev/null 2>&1
+if kubectl -n longhorn-system get volumes.longhorn.io 2>&1
 then
     set -x
     kubectl -n longhorn-system get volumes.longhorn.io -o json \
@@ -127,4 +127,3 @@ EOF
 echo
 
 echo "✅ Longhorn 1.6.2 is fresh, clean, and configured!"
-
