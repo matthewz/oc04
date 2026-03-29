@@ -10,3 +10,19 @@ kubectl get events -n oclaw01 --sort-by=.metadata.creationTimestamp
 
 grep ^  out/*.txt
 
+kubectl get deployments,pods -n kubernetes-dashboard -n kube-system -l 'k8s-app in (kubernetes-dashboard, metrics-server)'
+
+kubectl get apiservice v1beta1.metrics.k8s.io
+
+watch "kubectl get pods -A -l 'k8s-app in (kubernetes-dashboard, metrics-server)'"
+watch -d "kubectl get pods -A -l 'k8s-app in (kubernetes-dashboard, metrics-server)'"
+watch --color "kubectl get pods"
+
+watch "kubectl get deployments,pods -n kubernetes-dashboard -n kube-system -l 'k8s-app in (kubernetes-dashboard, metrics-server)'"
+
+watch "kubectl get deployments,pods,replicasets -A"
+
+watch "kubectl get pods -A --field-selector=status.phase!=Running"
+
+watch -c ./check-health.sh
+

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Kubernetes Dashboard Setup Script
+# Kubernetes Dashboard + Metrics Server Setup Script
 # =============================================================================
-# Usage: ./setup-dashboard.sh
-# Requirements: kubectl, lsof, base64
+# Usage: ./setup-k8s.sh
+# Requirements: kubectl, lsof, base64, python3
 # =============================================================================
 set -euo pipefail
 # -----------------------------------------------------------------------------
@@ -11,6 +11,7 @@ set -euo pipefail
 # -----------------------------------------------------------------------------
 readonly DASHBOARD_VERSION="v2.7.0"
 readonly DASHBOARD_MANIFEST="https://raw.githubusercontent.com/kubernetes/dashboard/${DASHBOARD_VERSION}/aio/deploy/recommended.yaml"
+readonly METRICS_MANIFEST="https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml"
 readonly NAMESPACE="kubernetes-dashboard"
 readonly SERVICE_ACCOUNT="admin-user"
 readonly SECRET_NAME="admin-user-token"
@@ -53,17 +54,6 @@ wait_for_deployment() {
     fi
     print_success "Deployment ${name} is ready."
 }
-free_port() {
-    local port="$1"
-    local pids
-    pids=$(lsof -t -i :"${port}" 2>/dev/null || true)
-    if [[ -n "${pids}" ]]; then
-        print_warning "Port ${port} is in use (PIDs: ${pids}). Killing..."
-        # shellcheck disable=SC2086
-        kill -9 ${pids} 2>/dev/null || true
-        sleep 1
-    fi
-}
 require_cmd() {
     for cmd in "$@"; do
         if ! command -v "${cmd}" &>/dev/null; then
@@ -72,12 +62,30 @@ require_cmd() {
         fi
     done
 }
+add_deployment_arg_if_missing() {
+    local ns="$1"
+    local deployment="$2"
+    local arg="$3"
+    local current_args
+    current_args=$(kubectl get deployment "${deployment}" \
+        -n "${ns}" \
+        -o jsonpath='{.spec.template.spec.containers[0].args}')
+    if echo "${current_args}" | grep -q "${arg}"; then
+        print_info "Arg already present, skipping: ${arg}"
+    else
+        print_info "Adding arg: ${arg}"
+        run kubectl patch deployment "${deployment}" \
+            -n "${ns}" \
+            --type="json" \
+            -p="[{\"op\": \"add\", \"path\": \"/spec/template/spec/containers/0/args/-\", \"value\": \"${arg}\"}]"
+    fi
+}
 # -----------------------------------------------------------------------------
 # Preflight checks
 # -----------------------------------------------------------------------------
 preflight_checks() {
     print_header "Preflight Checks"
-    require_cmd kubectl lsof base64
+    require_cmd kubectl lsof base64 python3
     if ! kubectl cluster-info &>/dev/null; then
         print_error "Cannot reach the Kubernetes cluster. Check your kubeconfig."
         exit 1
@@ -86,10 +94,10 @@ preflight_checks() {
     print_info "Current context: $(kubectl config current-context)"
 }
 # -----------------------------------------------------------------------------
-# Step 1 — Teardown (idempotent)
+# Step 1 - Teardown dashboard (idempotent)
 # -----------------------------------------------------------------------------
-teardown() {
-    print_header "Tearing Down Previous Installation (if any)"
+teardown_dashboard() {
+    print_header "Tearing Down Previous Dashboard Installation (if any)"
     print_info "Removing ClusterRoleBinding..."
     kubectl delete clusterrolebinding "${SERVICE_ACCOUNT}" \
         --ignore-not-found=true 2>/dev/null || true
@@ -103,7 +111,8 @@ teardown() {
         --ignore-not-found=true 2>/dev/null || true
     if resource_exists namespace "${NAMESPACE}"; then
         print_info "Deleting namespace ${NAMESPACE} (may take a moment)..."
-        kubectl delete namespace "${NAMESPACE}" --ignore-not-found=true 2>/dev/null || true
+        kubectl delete namespace "${NAMESPACE}" \
+            --ignore-not-found=true 2>/dev/null || true
         local attempts=0
         while resource_exists namespace "${NAMESPACE}"; do
             (( attempts++ ))
@@ -118,10 +127,33 @@ teardown() {
     else
         print_info "Namespace ${NAMESPACE} not found — nothing to delete."
     fi
-    print_success "Teardown complete."
+    print_success "Dashboard teardown complete."
 }
 # -----------------------------------------------------------------------------
-# Step 2 — Namespace & context
+# Step 2 - Teardown metrics server (idempotent)
+# -----------------------------------------------------------------------------
+teardown_metrics_server() {
+    print_header "Tearing Down Previous Metrics Server Installation (if any)"
+    print_info "Removing metrics-server manifest resources..."
+    kubectl delete -f "${METRICS_MANIFEST}" \
+        --ignore-not-found=true 2>/dev/null || true
+    # Wait for the deployment to disappear — we do NOT delete kube-system
+    # as it is a system namespace containing other critical components
+    local attempts=0
+    while resource_exists deployment metrics-server -n kube-system; do
+        (( attempts++ ))
+        if (( attempts > 30 )); then
+            print_error "metrics-server deployment still present after 60s. Aborting."
+            exit 1
+        fi
+        echo -n "."
+        sleep 2
+    done
+    echo ""
+    print_success "Metrics server teardown complete."
+}
+# -----------------------------------------------------------------------------
+# Step 3 - Namespace & context
 # -----------------------------------------------------------------------------
 setup_namespace_and_context() {
     print_header "Creating Namespace & Setting Context"
@@ -138,7 +170,33 @@ EOF
     print_success "Active context: $(kubectl config current-context)"
 }
 # -----------------------------------------------------------------------------
-# Step 3 — Install Dashboard
+# Step 4 - Install metrics server
+# -----------------------------------------------------------------------------
+install_metrics_server() {
+    print_header "Installing Metrics Server"
+    run kubectl apply -f "${METRICS_MANIFEST}"
+    
+    print_info "Patching metrics-server for local development..."
+    # Using -- to stop grep from interpreting the flag as a grep-option
+    if kubectl get deployment metrics-server -n kube-system -o jsonpath='{.spec.template.spec.containers[0].args}' | grep -q -- "--kubelet-insecure-tls"; then
+        print_info "Arg already present."
+    else
+        run kubectl patch deployment metrics-server -n kube-system --type="json" \
+            -p="[{\"op\": \"add\", \"path\": \"/spec/template/spec/containers/0/args/-\", \"value\": \"--kubelet-insecure-tls\"}]"
+    fi
+    echo ""
+    print_info "Waiting for metrics-server rollout to complete..."
+    # This is much more reliable than 'kubectl wait pod'
+    if ! kubectl rollout status deployment/metrics-server -n kube-system --timeout=180s; then
+        print_error "Metrics server rollout failed."
+        return 1
+    fi
+    print_success "Metrics server is ready."
+    print_info "Waiting 15s for the first scrape to stabilize..."
+    sleep 15
+}
+# -----------------------------------------------------------------------------
+# Step 5 - Install dashboard
 # -----------------------------------------------------------------------------
 install_dashboard() {
     print_header "Installing Kubernetes Dashboard ${DASHBOARD_VERSION}"
@@ -153,7 +211,7 @@ install_dashboard() {
     kubectl -n "${NAMESPACE}" get svc
 }
 # -----------------------------------------------------------------------------
-# Step 4 — RBAC & token
+# Step 6 - RBAC & token
 # -----------------------------------------------------------------------------
 setup_rbac_and_token() {
     print_header "Creating ServiceAccount, RBAC & Token"
@@ -188,6 +246,7 @@ metadata:
     kubernetes.io/service-account.name: ${SERVICE_ACCOUNT}
 type: kubernetes.io/service-account-token
 EOF
+    # The token controller populates the secret asynchronously
     print_info "Waiting for token to be populated in secret..."
     local attempts=0
     until kubectl get secret "${SECRET_NAME}" \
@@ -206,6 +265,7 @@ EOF
     run kubectl get serviceaccount "${SERVICE_ACCOUNT}" -n "${NAMESPACE}"
     run kubectl get clusterrolebinding "${SERVICE_ACCOUNT}"
     run kubectl get secret "${SECRET_NAME}" -n "${NAMESPACE}"
+    # Decode and save token
     kubectl get secret "${SECRET_NAME}" \
         -n "${NAMESPACE}" \
         -o jsonpath="{.data.token}" \
@@ -220,28 +280,14 @@ EOF
         || true
 }
 # -----------------------------------------------------------------------------
-# Step 5 — Patch dashboard deployment
+# Step 7 - Patch dashboard deployment
 # -----------------------------------------------------------------------------
 patch_dashboard() {
     print_header "Patching Dashboard Deployment"
-    add_arg_if_missing() {
-        local arg="$1"
-        local current_args
-        current_args=$(kubectl get deployment kubernetes-dashboard \
-            -n "${NAMESPACE}" \
-            -o jsonpath='{.spec.template.spec.containers[0].args}')
-        if echo "${current_args}" | grep -q "${arg}"; then
-            print_info "Arg already present, skipping: ${arg}"
-        else
-            print_info "Adding arg: ${arg}"
-            run kubectl patch deployment kubernetes-dashboard \
-                -n "${NAMESPACE}" \
-                --type="json" \
-                -p="[{\"op\": \"add\", \"path\": \"/spec/template/spec/containers/0/args/-\", \"value\": \"${arg}\"}]"
-        fi
-    }
-    add_arg_if_missing "--enable-skip-login"
-    add_arg_if_missing "--token-ttl=${TOKEN_TTL}"
+    add_deployment_arg_if_missing \
+        "${NAMESPACE}" "kubernetes-dashboard" "--enable-skip-login"
+    add_deployment_arg_if_missing \
+        "${NAMESPACE}" "kubernetes-dashboard" "--token-ttl=${TOKEN_TTL}"
     print_info "Waiting for patched deployment to roll out..."
     wait_for_deployment "${NAMESPACE}" "kubernetes-dashboard" "120s"
     print_info "Final container args:"
@@ -257,7 +303,7 @@ patch_dashboard() {
         2>/dev/null || print_warning "Logs not yet available."
 }
 # -----------------------------------------------------------------------------
-# Step 6 — Expose via NodePort
+# Step 8 - Expose via NodePort
 # -----------------------------------------------------------------------------
 expose_nodeport() {
     print_header "Exposing Dashboard via NodePort ${NODE_PORT}"
@@ -283,7 +329,7 @@ EOF
     print_success "NodePort access: https://<NODE_IP>:${NODE_PORT}"
 }
 # -----------------------------------------------------------------------------
-# Step 7 — Start port-forward
+# Step 9 - Start port-forward
 # -----------------------------------------------------------------------------
 start_port_forward() {
     print_header "Starting Port-Forward on localhost:${FORWARD_PORT}"
@@ -313,7 +359,7 @@ start_port_forward() {
     print_info "PID file: /tmp/dashboard-portforward.pid"
 }
 # -----------------------------------------------------------------------------
-# Step 8 — Start kubectl proxy
+# Step 10 - Start kubectl proxy
 # -----------------------------------------------------------------------------
 start_proxy() {
     print_header "Starting kubectl proxy on localhost:${PROXY_PORT}"
@@ -340,12 +386,15 @@ start_proxy() {
     print_info "PID file: /tmp/dashboard-proxy.pid"
 }
 # -----------------------------------------------------------------------------
-# Step 9 — Final summary
+# Step 11 - Final summary
 # -----------------------------------------------------------------------------
 final_summary() {
     print_header "Final Resource Summary"
     print_info "All resources in ${NAMESPACE}:"
     kubectl get all -n "${NAMESPACE}"
+    echo ""
+    print_info "Metrics server resources in kube-system:"
+    kubectl get all -n kube-system -l k8s-app=metrics-server
     echo ""
     print_info "ServiceAccount:"
     kubectl get serviceaccount "${SERVICE_ACCOUNT}" -n "${NAMESPACE}"
@@ -353,11 +402,26 @@ final_summary() {
     print_info "ClusterRoleBinding:"
     kubectl get clusterrolebinding "${SERVICE_ACCOUNT}"
     echo ""
-    print_info "Recent events (last 10):"
+    print_info "Recent events in ${NAMESPACE} (last 10):"
     kubectl get events \
         -n "${NAMESPACE}" \
         --sort-by='.lastTimestamp' \
         2>/dev/null | tail -10
+    echo ""
+    print_info "Recent events in kube-system for metrics-server (last 10):"
+    kubectl get events \
+        -n kube-system \
+        --sort-by='.lastTimestamp' \
+        --field-selector involvedObject.name=metrics-server \
+        2>/dev/null | tail -10
+    echo ""
+    print_info "Current node resource usage:"
+    kubectl top nodes \
+        || print_warning "Metrics not yet available — try 'kubectl top nodes' in a few seconds."
+    echo ""
+    print_info "Current pod resource usage (all namespaces):"
+    kubectl top pods -A \
+        || print_warning "Metrics not yet available — try 'kubectl top pods -A' in a few seconds."
     echo ""
     # Grab the first node's internal IP for the NodePort URL
     local node_ip
@@ -376,6 +440,9 @@ final_summary() {
     echo ""
     echo "  🔑 Print token .......... cat ${TOKEN_FILE}"
     echo ""
+    echo "  📊 Node metrics ......... kubectl top nodes"
+    echo "  📊 Pod metrics .......... kubectl top pods -A"
+    echo ""
     echo "  🛑 Stop port-forward .... kill \$(cat /tmp/dashboard-portforward.pid)"
     echo "  🛑 Stop proxy ........... kill \$(cat /tmp/dashboard-proxy.pid)"
     echo ""
@@ -385,8 +452,10 @@ final_summary() {
 # -----------------------------------------------------------------------------
 main() {
     preflight_checks
-    teardown
+    teardown_dashboard
+    teardown_metrics_server
     setup_namespace_and_context
+    install_metrics_server
     install_dashboard
     setup_rbac_and_token
     patch_dashboard

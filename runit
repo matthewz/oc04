@@ -3,7 +3,6 @@ sudo -v
 ./mac_wrangle.sh
 (time ./k8s-rebuild.sh)                1> k8s-rebuild_out.txt                2>&1 &
 (time ./setup-k8s-dashboard.sh)        1> setup-k8s-dashboard_out.txt        2>&1 &
-(time ./install-k8s-metrics-server.sh) 1> install-k8s-metrics-server_out.txt 2>&1 &
 . ./demo 
 (time ./longhorn-rebuild.sh)           1> longhorn-rebuild_out.txt           2>&1 &
 . ./oclaw
