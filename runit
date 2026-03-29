@@ -1,7 +1,7 @@
 set -x
 sudo -v
 ./mac_wrangle.sh
-(time ./rebuild-k8s.sh)                1> rebuild_k8s_out.txt                2>&1 &
+(time ./k8s-rebuild.sh)                1> k8s-rebuild_out.txt                2>&1 &
 (time ./start-k8s-dashboard.sh)        1> start-k8s-dashboard_out.txt        2>&1 &
 (time ./install-k8s-metrics-server.sh) 1> install-k8s-metrics-server_out.txt 2>&1 &
 . ./demo 
