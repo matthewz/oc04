@@ -1,45 +1,67 @@
 echo "🛑 Phase 1: Deep Cleaning Old Longhorn..."
-# 1. Clear the reservations
-kubectl delete pvc --all --all-namespaces
-kubectl delete pv --all
+echo "1. Clear the reservations"
+set -x
+kubectl delete pvc --all --all-namespaces 2> /dev/null
+kubectl delete pv  --all                  2> /dev/null
+set +x
 
-# 2. Force-clear the finalizers (The "Safety Locks")
+echo "2. Force-clear the finalizers"
 # Note: Added a check so it doesn't error out if no volumes exist
-if kubectl -n longhorn-system get volumes.longhorn.io >/dev/null 2>&1; then
-    kubectl -n longhorn-system get volumes.longhorn.io -o json | jq '.items[].metadata.finalizers = []' | kubectl replace --raw /apis/longhorn.io/v1beta2/namespaces/longhorn-system/volumes -f -
+if kubectl -n longhorn-system get volumes.longhorn.io > /dev/null 2>&1
+then
+    set -x
+    kubectl -n longhorn-system get volumes.longhorn.io -o json \
+  | jq '.items[].metadata.finalizers = []' \
+  | kubectl replace --raw /apis/longhorn.io/v1beta2/namespaces/longhorn-system/volumes -f -
+    set +x
 fi
 
-# 3. Trigger the official uninstaller logic
+echo "3. Trigger the official uninstaller logic"
+set -x
 kubectl -n longhorn-system patch settings.longhorn.io deinstalling-indicator -p '{"value":"true"}' --type=merge 2>/dev/null
+set +x
 
-# 4. Remove the software
+echo "4. Remove the software"
+set -x
 kubectl delete -f https://raw.githubusercontent.com/longhorn/longhorn/v1.6.2/deploy/longhorn.yaml
-echo "⏳ Waiting 45 seconds for pods to stop and release file locks..."
+set +x
 
+echo "⏳ Waiting 45 seconds for pods to stop and release file locks..."
 sleep 45
 
-# 5. Wipe the physical disk "sticky goo" inside the VMs
+echo "5. Wipe the physical disk of the VM's"
 echo "🧹 Scrubbing disk storage on all nodes..."
-for node in k8s-master k8s-worker1 k8s-worker2; do
+for node in k8s-master k8s-worker1 k8s-worker2
+do
+    set -x
     multipass exec $node -- sudo rm -rf /var/lib/longhorn/
+    set +x
 done
 
-# 6. Final namespace wipe
+echo "6. Final namespace wipe"
+set -x
 kubectl delete namespace longhorn-system --ignore-not-found=true
+set +x
+
 echo "📦 Phase 2: Installing Longhorn v1.6.2..."
+set -x
 kubectl apply -f https://raw.githubusercontent.com/longhorn/longhorn/v1.6.2/deploy/longhorn.yaml
+set +x
 
 echo "⏳ Waiting 90 seconds for Longhorn to 'wake up' and register its dictionary (CRDs)..."
-# This is the most important sleep!
+# very important sleep
 sleep 90 
 
-echo "🚀 Phase 3: Configuring Settings and Backup Jobs..."
+echo "🚀 Phase 3a: Configuring Settings and Backup Jobs...wait!"
 
-# Use a loop to wait for the 'settings' resource to actually exist before applying
-until kubectl get crd settings.longhorn.io >/dev/null 2>&1; do
+echo "Using a loop to wait for the 'settings' resource to actually exist before applying"
+until kubectl get crd settings.longhorn.io >/dev/null 2>&1
+do
   echo "Still waiting for Longhorn dictionary to load..."
   sleep 5
 done
+
+echo "🚀 Phase 3b: Configuring Settings and Backup Jobs...apply"
 
 cat <<EOF | kubectl apply -f -
 ---
