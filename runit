@@ -1,7 +1,6 @@
 set -x
 sudo -v
 ./mac_wrangle.sh
-
 date
 (time ./k8s-rebuild.sh)                1> k8s-rebuild_out.txt                2>&1 &
 date
