@@ -1,8 +1,24 @@
 #!/bin/bash
-# SRE Best Practice: Use strict error handling
-set -e          # Exit on error
-set -u          # Exit if a variable is unset
-set -o pipefail # Catch errors in piped commands (e.g., awk/grep)
+set -euo pipefail
+# ============================================================
+echo "Excluding multipass directory from time machine..."
+# ============================================================
+set -x
+sudo tmutil addexclusion /private/var/root/Library/Application\ Support/multipassd/ 
+sudo tmutil isexcluded /private/var/root/Library/Application\ Support/multipassd/
+set +x
+echo "⏸️  Pausing Time Machine for duration of provisioning..."
+set -x
+sudo tmutil disable
+set +x
+# Ensure Time Machine is ALWAYS re-enabled when script exits,
+# even if it exits due to an error (that's what trap does)
+trap 'echo "▶️  Re-enabling Time Machine..."; sudo tmutil enable' EXIT
+###
+# ============================================================
+echo "=================================================="
+echo "      Starting Kubernetes Cluster Rebuild"
+echo "=================================================="
 # Colors for better readability
 GREEN='\033[0;32m'
 RED='\033[0;31m'
