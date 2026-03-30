@@ -10,6 +10,7 @@ set +x
 echo "⏸️  Pausing Time Machine for duration of provisioning..."
 set -x
 sudo tmutil disable
+sudo tmutil status
 set +x
 # Ensure Time Machine is ALWAYS re-enabled when script exits,
 # even if it exits due to an error (that's what trap does)
