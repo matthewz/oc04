@@ -102,8 +102,8 @@ multipass exec $MASTER_NAME -- sudo systemctl restart containerd kubelet
 # This allows CoreDNS to run on the master immediately so the 'wait' 
 # command doesn't hang if workers haven't joined yet.
 echo "🔓 Removing master taint to allow CoreDNS to schedule..."
-multipass exec $MASTER_NAME -- kubectl taint nodes --all node-role.kubernetes.io/control-plane- || true
-multipass exec $MASTER_NAME -- kubectl taint nodes --all node-role.kubernetes.io/master- || true
+multipass exec $MASTER_NAME -- kubectl taint nodes --all node-role.kubernetes.io/control-plane- 2> /dev/null || true
+multipass exec $MASTER_NAME -- kubectl taint nodes --all node-role.kubernetes.io/master-        2> /dev/null || true
 
 # 5d. WAIT FOR NODE TO BECOME READY
 # We give this a generous 10-minute timeout for slow local environments
@@ -129,9 +129,8 @@ multipass exec $MASTER_NAME -- kubectl get pods -A
 echo "🔑 Generating join command for workers..."
 # Ensure the output directory exists on the Mac
 mkdir -p "$PROJECT_ROOT/out"
-# We use 'tail -1' to ensure we ONLY grab the actual 'kubeadm join' line, 
-# ignoring any 'preflight' warnings or info text.
-multipass exec $MASTER_NAME -- sudo kubeadm token create --print-join-command | tail -1 > "$PROJECT_ROOT/out/join-command.sh"
+multipass exec $MASTER_NAME -- bash -c "sudo kubeadm token create --print-join-command > /home/ubuntu/join-command.sh"
+multipass transfer $MASTER_NAME:/home/ubuntu/join-command.sh $PROJECT_ROOT/out/join-command.sh
 # Make it executable just in case
 chmod +x "$PROJECT_ROOT/out/join-command.sh"
 echo "✅ Join command saved to $PROJECT_ROOT/out/join-command.sh"

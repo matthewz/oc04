@@ -6,7 +6,7 @@ MASTER_NAME=$2
 echo "🔗 Preparing to join $WORKER_NAME to $MASTER_NAME..."
 # 1. Wait for Master API and Kubeadm to be ready
 echo "⏳ Waiting for Master ($MASTER_NAME) to be ready..."
-MAX_RETRIES=30
+MAX_RETRIES=60
 COUNT=0
 until multipass exec "$MASTER_NAME" -- sudo kubeadm token list 2> /dev/null
 do
