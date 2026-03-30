@@ -102,8 +102,13 @@ multipass exec $MASTER_NAME -- sudo systemctl restart containerd kubelet
 # This allows CoreDNS to run on the master immediately so the 'wait' 
 # command doesn't hang if workers haven't joined yet.
 echo "🔓 Removing master taint to allow CoreDNS to schedule..."
-multipass exec $MASTER_NAME -- kubectl taint nodes --all node-role.kubernetes.io/control-plane- 2> /dev/null || true
-multipass exec $MASTER_NAME -- kubectl taint nodes --all node-role.kubernetes.io/master-        2> /dev/null || true
+
+set -x
+
+multipass exec $MASTER_NAME -- kubectl taint nodes --all node-role.kubernetes.io/control-plane- || true
+multipass exec $MASTER_NAME -- kubectl taint nodes --all node-role.kubernetes.io/master-        || true
+
+set +x
 
 # 5d. WAIT FOR NODE TO BECOME READY
 # We give this a generous 10-minute timeout for slow local environments
