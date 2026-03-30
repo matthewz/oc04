@@ -7,7 +7,7 @@ First, a few requirements:
 - Install qemu / Hypervisor 
 - Install Gitbash: https://git-scm.com/install/
 
-Run each of the following using ". $FILENAME" command in a bash prompt:
+Run each of the following using ". $FILENAME", or, running the script as shown in bash prompt:
 
 ```
 (time ./k8s-rebuild.sh)                1> k8s-rebuild_out.txt                2>&1 &
