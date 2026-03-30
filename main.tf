@@ -1,3 +1,4 @@
+
 terraform {
   required_version = ">= 1.0"
   required_providers {
@@ -21,13 +22,13 @@ resource "local_file" "helper_script" {
   depends_on      = [null_resource.prepare_env]
   filename        = "${local.out_dir}/helper.sh"
   file_permission = "0755"
-  content         = templatefile("${path.module}/scripts/helper.sh.tpl", {
-    generated_at = timestamp()
-    out_dir      = abspath("${local.out_dir}")
-    scripts_dir  = abspath("${path.module}/scripts")
-    master_name  = local.master_name
-    worker1_name = local.worker1_name
-    worker2_name = local.worker2_name
+  content = templatefile("${path.module}/scripts/helper.sh.tpl", {
+    generated_at  = timestamp()
+    out_dir       = abspath("${local.out_dir}")
+    scripts_dir   = abspath("${path.module}/scripts")
+    master_name   = local.master_name
+    worker1_name  = local.worker1_name
+    worker2_name  = local.worker2_name
     master_memory = var.master_memory
     master_cpus   = var.master_cpus
     worker_memory = var.worker_memory
@@ -60,7 +61,7 @@ resource "null_resource" "k8s_master_init" {
 # --- STAGE 2: WORKER 1 ---
 # 2a. Create Worker 1 VM
 resource "null_resource" "k8s_worker1" {
-  depends_on = [null_resource.k8s_master_init] 
+  depends_on = [null_resource.k8s_master_init]
   provisioner "local-exec" {
     command = "${path.module}/scripts/create-vm.sh worker ${local.worker1_name} ${var.worker_memory} ${var.worker_cpus} ${var.disk_size} ${local.out_dir}/worker1-ip.txt"
   }
@@ -83,7 +84,7 @@ resource "null_resource" "k8s_worker1_join" {
 # --- STAGE 3: WORKER 2 ---
 # 3a. Create Worker 2 VM
 resource "null_resource" "k8s_worker2" {
-  depends_on = [null_resource.k8s_worker1_join] 
+  depends_on = [null_resource.k8s_worker1_join]
   provisioner "local-exec" {
     command = "${path.module}/scripts/create-vm.sh worker ${local.worker2_name} ${var.worker_memory} ${var.worker_cpus} ${var.disk_size} ${local.out_dir}/worker2-ip.txt"
   }

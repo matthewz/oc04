@@ -91,6 +91,20 @@ multipass exec $MASTER_NAME -- bash -c '
     exit 1
   fi
 '
+
+# 5c.1 AUTOMATIC KICKSTART (The Permanent Fix)
+# Sometimes Kubelet misses the CNI file creation on initial boot.
+# We proactively restart it to ensure it picks up the new Flannel config.
+echo "🔄 Proactively restarting Kubelet and Containerd to pick up CNI..."
+multipass exec $MASTER_NAME -- sudo systemctl restart containerd kubelet
+
+# 5c.2 UNTAINT MASTER (Optional but recommended for single-node start)
+# This allows CoreDNS to run on the master immediately so the 'wait' 
+# command doesn't hang if workers haven't joined yet.
+echo "🔓 Removing master taint to allow CoreDNS to schedule..."
+multipass exec $MASTER_NAME -- kubectl taint nodes --all node-role.kubernetes.io/control-plane- || true
+multipass exec $MASTER_NAME -- kubectl taint nodes --all node-role.kubernetes.io/master- || true
+
 # 5d. WAIT FOR NODE TO BECOME READY
 # We give this a generous 10-minute timeout for slow local environments
 echo "⏳ Waiting for master node to become Ready (up to 10 minutes)..."
@@ -108,11 +122,19 @@ echo "📋 Final cluster state:"
 multipass exec $MASTER_NAME -- kubectl get nodes -o wide
 echo ""
 multipass exec $MASTER_NAME -- kubectl get pods -A
-# 6. CAPTURE JOIN COMMAND
+###
+# ==================================================
+# 6. CAPTURE JOIN COMMAND (The Clean Way)
+# ==================================================
 echo "🔑 Generating join command for workers..."
-mkdir -p $PROJECT_ROOT/out
-multipass exec $MASTER_NAME -- sudo kubeadm token create --print-join-command > $PROJECT_ROOT/out/join-command.sh
-chmod +x $PROJECT_ROOT/out/join-command.sh
+# Ensure the output directory exists on the Mac
+mkdir -p "$PROJECT_ROOT/out"
+# We use 'tail -1' to ensure we ONLY grab the actual 'kubeadm join' line, 
+# ignoring any 'preflight' warnings or info text.
+multipass exec $MASTER_NAME -- sudo kubeadm token create --print-join-command | tail -1 > "$PROJECT_ROOT/out/join-command.sh"
+# Make it executable just in case
+chmod +x "$PROJECT_ROOT/out/join-command.sh"
+echo "✅ Join command saved to $PROJECT_ROOT/out/join-command.sh"
 echo "=================================================="
 echo "✅ Master Initialization Complete!"
 echo "=================================================="
