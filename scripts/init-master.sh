@@ -50,10 +50,26 @@ multipass exec $MASTER_NAME -- bash -c '
   sudo chown $(id -u ubuntu):$(id -g ubuntu) /home/ubuntu/.kube/config
 '
 # 5. INSTALL POD NETWORK (Flannel)
-# Without this, nodes will stay in "NotReady" status forever.
 echo "🌐 Installing Flannel pod network..."
 multipass exec $MASTER_NAME -- \
   kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+# 5a. WAIT FOR FLANNEL POD TO BE RUNNING
+echo "⏳ Waiting for Flannel pod to be ready..."
+multipass exec $MASTER_NAME -- \
+  kubectl wait --namespace kube-flannel \
+    --for=condition=ready pod \
+    --selector=app=flannel \
+    --timeout=120s
+# 5b. WAIT FOR NODE TO BECOME READY
+echo "⏳ Waiting for master node to become Ready..."
+multipass exec $MASTER_NAME -- \
+  kubectl wait --for=condition=Ready node/$MASTER_NAME \
+    --timeout=120s
+# 5c. VERIFY — Print final state so we can SEE it in logs
+echo "📋 Final cluster state:"
+multipass exec $MASTER_NAME -- kubectl get nodes -o wide
+multipass exec $MASTER_NAME -- kubectl get pods -n kube-flannel
+multipass exec $MASTER_NAME -- kubectl get pods -n kube-system
 # 6. CAPTURE JOIN COMMAND
 # We save this to a local file so the worker nodes can read it to join.
 # Note: join-worker.sh generates a fresh token dynamically, but we save
