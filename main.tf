@@ -77,8 +77,8 @@ resource "null_resource" "setup_common_worker1" {
 resource "null_resource" "k8s_worker1_join" {
   depends_on = [null_resource.setup_common_worker1]
   provisioner "local-exec" {
-    # FIX: Extract MASTER_IP so the script doesn't default to "."
-    command = "MASTER_IP=$(cat ${local.out_dir}/master-ip.txt) && ${path.module}/scripts/join-worker.sh ${local.worker1_name} $MASTER_IP ${path.module}"
+    # Change $MASTER_IP to ${local.master_name}
+    command = "${path.module}/scripts/join-worker.sh ${local.worker1_name} ${local.master_name} ${path.module}"
   }
 }
 # --- STAGE 3: WORKER 2 ---
@@ -100,8 +100,8 @@ resource "null_resource" "setup_common_worker2" {
 resource "null_resource" "k8s_worker2_join" {
   depends_on = [null_resource.setup_common_worker2]
   provisioner "local-exec" {
-    # FIX: Extract MASTER_IP so the script doesn't default to "."
-    command = "MASTER_IP=$(cat ${local.out_dir}/master-ip.txt) && ${path.module}/scripts/join-worker.sh ${local.worker2_name} $MASTER_IP ${path.module}"
+    # Change $MASTER_IP to ${local.master_name}
+    command = "${path.module}/scripts/join-worker.sh ${local.worker2_name} ${local.master_name} ${path.module}"
   }
 }
 # --- STAGE 4: FINALIZE ---
