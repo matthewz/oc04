@@ -10,6 +10,7 @@ First, a few requirements:
 Run each of the following using ".(dot) $FILENAME", or, running the script as shown in bash prompt:
 
 ```
+sudo -v # pre-authorized for subsequent commands in the .sh scripts
 (time ./k8s-rebuild.sh)                1> k8s-rebuild_out.txt                2>&1 &
 (time ./setup-k8s-dashboard.sh)        1> setup-k8s-dashboard_out.txt        2>&1 &
 . ./demo 
