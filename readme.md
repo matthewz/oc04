@@ -16,9 +16,7 @@ sudo -v # pre-authorize for subsequent commands in the .sh scripts
 . ./demo 
 (time ./longhorn-rebuild.sh)           1> longhorn-rebuild_out.txt           2>&1 &
 . ./oclaw
-
 ```
-
 See howto file for useful commands.
 
 This will create a 3 node kubernetes cluster, set up the dashboard and metrics for it, and install a simple Voting App. consisting of a frontend, backend and a database for use in verifying the infrastructure. 
