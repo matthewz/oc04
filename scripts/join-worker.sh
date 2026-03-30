@@ -1,9 +1,10 @@
 #!/bin/bash
 set -e
 set -o pipefail
-# Arguments
-WORKER_NAME=$1
-MASTER_NAME=$2
+# Arguments passed from Terraform:
+WORKER_NAME=$1  # e.g., k8s-worker1
+MASTER_NAME=$2  # e.g., k8s-master
+PROJECT_ROOT=$3 # e.g., ${path.module}
 echo "=================================================="
 echo "🔗 Preparing to join $WORKER_NAME to $MASTER_NAME..."
 echo "=================================================="
