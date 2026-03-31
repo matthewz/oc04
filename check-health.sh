@@ -10,10 +10,17 @@ echo -e "\n${BOLD}🖥️  Multipass Infrastructure:${NC}"
 if command -v multipass &> /dev/null; then
     # List VMs and their IP/State
     multipass list --format table | sed 's/^/  /'
-    
-    # Check Disk/Memory of all RUNNING instances
-    echo -e "\n${BOLD}💾 Node Resource Health (Internal):${NC}"
-    multipass exec --all -- bash -c "echo -n '  - '; hostname; echo -n '    '; df -h / | tail -1 | awk '{print \"Disk: \" \$5}'; echo -n '    '; free -h | grep Mem | awk '{print \"Mem:  \" \$3 \"/\" \$2}'" 2>/dev/null
+
+    read -a nodes <<< $(multipass list -v | cut -d " " -f 1 | xargs | cut -d " " -f 2-)
+    for node in "${nodes[@]}"; do
+       multipass exec "$node" -- bash -c \
+       " \
+         echo -n '   - ' ; hostname \
+       ; echo -n '     ' ;  df -h / | tail -1 | awk '{print \"Disk: \" \$5}' \
+       ; echo -n '     ' ; free -h | grep Mem | awk '{print \"Mem:  \" \$3 \"/\" \$2}' \
+       " \
+       2> /dev/null
+    done
 else
     echo -e "  ${RED}❌ Multipass command not found.${NC}"
 fi
