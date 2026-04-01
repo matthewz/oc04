@@ -1,0 +1,32 @@
+###
+# pipeline.yaml
+# Describes the orchestration pipeline declaratively.
+# Python reads this and executes each step accordingly.
+settings:
+  verbose: true        # equivalent to `set -x`
+  sudo_keepalive: true # equivalent to `sudo -v`
+steps:
+  - name: mac_wrangle
+    script: ./mac_wrangle.sh
+    mode: foreground   # blocking — must complete before continuing
+  - name: k8s_rebuild
+    script: ./k8s-rebuild.sh
+    mode: background   # non-blocking — fires and moves on
+    log: k8s-rebuild_out.txt
+    wrap_with_dates: true
+  - name: k8s_dashboard_setup
+    script: ./setup-k8s-dashboard.sh
+    mode: background
+    log: setup-k8s-dashboard_out.txt
+    wrap_with_dates: true
+  - name: demo_source
+    script: ./demo
+    mode: source       # equivalent to `. ./demo` — runs in current shell env
+  - name: longhorn_rebuild
+    script: ./longhorn-rebuild.sh
+    mode: background
+    log: longhorn-rebuild_out.txt
+    wrap_with_dates: true
+  - name: oclaw_source
+    script: ./oclaw
+    mode: source       # equivalent to `. ./oclaw`
