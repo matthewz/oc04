@@ -113,20 +113,39 @@ RUNNERS = {
 }
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
-    yaml_file = sys.argv[1] if len(sys.argv) > 1 else "pipeline.yaml"
+    # Argument parsing:
+    #   python3 run_pipeline.py                        → runs full pipeline
+    #   python3 run_pipeline.py k8s_rebuild            → runs single task
+    #   python3 run_pipeline.py pipeline.yaml          → runs full pipeline from named file
+    #   python3 run_pipeline.py pipeline.yaml k8s_rebuild → single task from named file
+    args = sys.argv[1:]
+    # Sniff whether the first arg looks like a yaml file or a task name
+    if args and args[0].endswith(".yaml"):
+        yaml_file  = args[0]
+        target     = args[1] if len(args) > 1 else None
+    else:
+        yaml_file  = "pipeline.yaml"
+        target     = args[0] if args else None
     print(f"Loading pipeline from: {yaml_file}")
     with open(yaml_file) as f:
         pipeline = yaml.safe_load(f)
     settings = pipeline.get("settings", {})
     verbose  = settings.get("verbose", True)
-    # sudo -v equivalent
     if settings.get("sudo_keepalive", False):
         sudo_keepalive(verbose)
     steps = pipeline.get("steps", [])
-    print(f"Found {len(steps)} step(s). Starting pipeline...\n")
+    # If a target was given, filter down to just that one step
+    if target:
+        steps = [s for s in steps if s.get("name") == target]
+        if not steps:
+            print(f"ERROR: No step named '{target}' found in {yaml_file}", file=sys.stderr)
+            sys.exit(1)
+        print(f"Running single task: {target}\n")
+    else:
+        print(f"Found {len(steps)} step(s). Starting pipeline...\n")
     for step in steps:
-        name = step.get("name", "unnamed")
-        mode = step.get("mode", "foreground")
+        name   = step.get("name", "unnamed")
+        mode   = step.get("mode", "foreground")
         runner = RUNNERS.get(mode)
         if not runner:
             print(f"ERROR: Unknown mode '{mode}' in step '{name}'", file=sys.stderr)
