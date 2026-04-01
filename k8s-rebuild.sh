@@ -162,9 +162,9 @@ main() {
     echo "      Starting Kubernetes Cluster Rebuild"
     echo "=================================================="
     check_multipass_installed
-    clean_workspace          # ← moved up
-    initialize_terraform     # ← moved up (init before destroy)
-    destroy_infrastructure   # ← now has a valid lock file
+    clean_workspace         
+    initialize_terraform  
+    destroy_infrastructure 
     plan_infrastructure
     apply_infrastructure
     orchestrate_worker_joins

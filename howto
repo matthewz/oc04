@@ -30,3 +30,7 @@ watch -n 5 -c ./check-health.sh
 
 multipass exec k8s-master -- sudo journalctl -u containerd -f
 
+helm repo remove kubernetes-dashboard || true
+
+
+

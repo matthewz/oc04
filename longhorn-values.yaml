@@ -1,0 +1,9 @@
+# longhorn-values.yaml
+defaultSettings:
+  replicaSoftAntiAffinity: true
+  storageOverProvisioningPercentage: 500
+  storageMinimalAvailablePercentage: 10
+  defaultReplicaCount: 1
+  backupTarget: "nfs://192.168.50.13/nfs/longhorn-backups"
+persistence:
+  defaultClassReplicaCount: 1

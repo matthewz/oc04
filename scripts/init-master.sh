@@ -20,6 +20,7 @@ echo "=================================================="
 echo "🧹 Cleaning up any previous Kubernetes state..."
 multipass exec $MASTER_NAME -- sudo kubeadm reset -f || true
 multipass exec $MASTER_NAME -- sudo rm -rf /etc/cni/net.d || true
+multipass exec $MASTER_NAME -- sudo crictl pull registry.k8s.io/coredns/coredns:v1.10.1
 # FIX: Use explicit path instead of $HOME which expands on the LOCAL machine
 # and would delete your Mac's ~/.kube directory!
 multipass exec $MASTER_NAME -- bash -c 'sudo rm -rf /home/ubuntu/.kube' || true

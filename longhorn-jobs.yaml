@@ -1,0 +1,35 @@
+# longhorn-jobs.yaml
+# Objects that live OUTSIDE the Helm chart:
+#   1. RecurringJob  — Longhorn CRD, applied after Helm install
+#   2. StorageClass  — second class (longhorn-static) for explicit workloads
+#
+# Applied by: kubectl apply -f ./longhorn-jobs.yaml
+---
+# A second StorageClass for workloads that want explicit 1-replica config.
+# The default 'longhorn' StorageClass is managed by the Helm chart itself
+# via longhorn-values.yaml. This one is for workloads that pin to it by name.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: longhorn-static
+provisioner: driver.longhorn.io
+allowVolumeExpansion: true
+parameters:
+  numberOfReplicas: "1"
+  staleReplicaTimeout: "1440"  # 24 hours — tolerates longer node downtime
+---
+# Daily backup job to NAS at 2am, retaining 7 backups.
+# Applied to the 'default' group — all volumes inherit this automatically.
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: daily-nas-backup
+  namespace: longhorn-system
+spec:
+  name: daily-nas-backup
+  groups:
+    - default
+  task: backup
+  cron: "0 2 * * *"
+  retain: 7
+  concurrency: 1
