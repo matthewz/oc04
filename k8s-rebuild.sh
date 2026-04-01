@@ -63,7 +63,7 @@ pause_time_machine() {
     set +x
 
     # Ensure Time Machine is ALWAYS re-enabled when script exits
-    trap 'echo "▶️  Re-enabling Time Machine..."; sudo tmutil enable' EXIT
+    #trap 'echo "▶️  Re-enabling Time Machine..."; sudo tmutil enable' EXIT
 }
 
 # Function to check if Multipass is installed
