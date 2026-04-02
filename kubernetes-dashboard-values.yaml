@@ -1,0 +1,14 @@
+extraArgs:
+  - --enable-skip-login
+  - --token-ttl=288000
+api:
+  containers:
+    resources:
+      limits:
+        cpu: 200m
+kong:
+  proxy:
+    http:
+      enabled: true
+    tls:
+      enabled: false

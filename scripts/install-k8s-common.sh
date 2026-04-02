@@ -6,15 +6,16 @@ K8S_VERSION=$2  # Example: 1.28.0-1.1
 echo "=================================================="
 echo "  Installing K8s Common Binaries on $NODE_NAME   "
 echo "=================================================="
-set -x
+
+#set -x
 # 0. If kubelet is already there, don't waste CPU/Disk reinstalling
-echo "Checking for kubelet..."
-K8S_PATH=$(multipass exec "$NODE_NAME" -- which kubelet < /dev/null 2>&1) || true
-if [[ "$K8S_PATH" == *"kubelet"* ]]; then
-   echo "✅ K8s already installed on $NODE_NAME, skipping..."
-   exit 0
-fi
-set +x
+#echo "Checking for kubelet..."
+#K8S_PATH=$(multipass exec "$NODE_NAME" -- which kubelet < /dev/null 2>&1) || true
+#if [[ "$K8S_PATH" == *"kubelet"* ]]; then
+#   echo "✅ K8s already installed on $NODE_NAME, skipping..."
+#   exit 0
+#fi
+#set +x
 
 # Extract the minor version (e.g., "1.28") from the full version string
 # (e.g., "1.28.0-1.1") so we can build the correct repo URL dynamically.
@@ -78,19 +79,32 @@ EOF
 # We pass K8S_MINOR into the VM as an environment variable using
 # the -v flag pattern so the remote bash script can use it safely
 # without any heredoc quoting gymnastics.
+
 echo "📦 Installing Kubernetes binaries (version ~${K8S_VERSION})..."
 multipass exec "$NODE_NAME" -- bash -c "
   set -e
   # Add the Kubernetes apt repo for the correct minor version
   # FIX: Previously hardcoded to v1.28. Now uses the version passed
   # in from Terraform via the K8S_VERSION variable.
+
   sudo mkdir -p -m 755 /etc/apt/keyrings
-  curl -fsSL https://pkgs.k8s.io/core:/stable:/v${K8S_MINOR}/deb/Release.key | \
-    sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-  echo \"deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] \
-    https://pkgs.k8s.io/core:/stable:/v${K8S_MINOR}/deb/ /\" | \
-    sudo tee /etc/apt/sources.list.d/kubernetes.list
+  if [ ! -f /etc/apt/keyrings/kubernetes-apt-keyring.gpg ]; then
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/v${K8S_MINOR}/deb/Release.key | \
+      sudo gpg --batch --yes --no-tty --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  else
+    echo '✅ Kubernetes GPG key already exists, skipping...'
+  fi
+  if [ ! -f /etc/apt/sources.list.d/kubernetes.list ]; then
+    echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] \
+      https://pkgs.k8s.io/core:/stable:/v${K8S_MINOR}/deb/ /' | \
+      sudo tee /etc/apt/sources.list.d/kubernetes.list
+  else
+    echo '✅ Kubernetes apt source already exists, skipping...'
+  fi
+
   sudo apt-get update -y
+
+
   # FIX: Previously installed latest available version, ignoring K8S_VERSION.
   # Now pins to the exact version passed in so all nodes are consistent.
   sudo apt-get install -y \
@@ -100,6 +114,7 @@ multipass exec "$NODE_NAME" -- bash -c "
   # Hold the packages to prevent unintended upgrades via apt upgrade
   sudo apt-mark hold kubelet kubeadm kubectl
 "
+
 echo "✅ Common K8s setup complete for $NODE_NAME"
 echo "=================================================="
 

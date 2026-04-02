@@ -20,16 +20,18 @@ until multipass exec "$MASTER_NAME" -- sudo kubeadm token list 2>/dev/null; do
     echo "   Attempt $COUNT/$MAX_RETRIES: Master not ready yet, waiting 10s..."
     sleep 10
 done
+
 echo "✅ Master is ready."
+echo "✅ Master is ready!"
 
 # 0. Check if this node is already "Ready" in the cluster
 echo "Checking if $NODE_NAME is already a member..."
 # We check the master to see if this node exists and is 'Ready'
-ALREADY_JOINED=$(multipass exec k8s-master -- kubectl get nodes | grep "$NODE_NAME" | grep "Ready" || true)
-if [[ -n "$ALREADY_JOINED" ]]; then
-   echo "✅ $NODE_NAME is already Joined and Ready. Skipping join process."
-   exit 0
-fi
+#ALREADY_JOINED=$(multipass exec k8s-master -- kubectl get nodes | grep "$NODE_NAME" | grep "Ready" || true)
+#if [[ -n "$ALREADY_JOINED" ]]; then
+#   echo "✅ $NODE_NAME is already Joined and Ready. Skipping join process."
+#   exit 0
+#fi
 
 echo "🧹 Checking for existing $WORKER_NAME registration..."
 # 1. Capture the check in a variable first

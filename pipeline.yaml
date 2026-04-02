@@ -5,31 +5,19 @@ settings:
   #sudo_keepalive: true
 steps:
   - name: k8s_rebuild
-    script: ./k8s-rebuild.sh
+    script: ./k8s-rebuild.sh 2>&1 | tee k8s-rebuild_out.txt
     mode: foreground           
-    log: k8s-rebuild_out.txt
     wrap_with_dates: true
   - name: wait_for_cluster
-    script: |
-      TRIES=0
-      MAX_TRIES=60
-      until kubectl get nodes --request-timeout=5s 1> /dev/null 2>&1
-      do
-        TRIES=$((TRIES+1))
-        if [ "$TRIES" -ge "$MAX_TRIES" ]
-        then
-          echo "❌ Cluster never became ready after $((MAX_TRIES*10))s — aborting"
-          exit 1 
-        fi 
-        echo "   ...waiting for cluster API (attempt $TRIES/$MAX_TRIES)"
-        sleep 10 
-      done 
-      echo "✅ Cluster API is responding"
+    script: ./wait_for_cluster.sh
     mode: foreground
+    wrap_with_dates: true
   - name: apps                  
-    script: helmfile apply > helmfile_apply_out.txt 2>&1
+    script: |
+       helmfile apply 2>&1 | tee helmfile_apply_out.txt
     mode: foreground   
     log: apps_out.txt
+    wrap_with_dates: true
   - name: demo_source
     script: ./demo
     mode: source

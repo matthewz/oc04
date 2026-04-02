@@ -8,7 +8,6 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Constants
-MULTIPASS_DIR="/private/var/root/Library/Application Support/multipassd/"
 JOIN_FILE="./out/join-command.sh"
 MAX_RETRIES=30
 SAFE_MODE=false  # set to true with --safe flag
@@ -77,14 +76,6 @@ orchestrate_worker_joins() {
     echo -e "${GREEN}✅ All workers joined. Cluster rebuild complete!${NC}"
 }
 
-# Function to display final status
-display_final_status() {
-    echo -e "${BLUE}Final Status:${NC}"
-    multipass list
-    echo -e "${BLUE}Checking Node Status from Master:${NC}"
-    multipass exec k8s-master -- kubectl get nodes -o wide
-}
-
 # Main function
 main() {
     echo "=================================================="
@@ -96,7 +87,6 @@ main() {
     plan_infrastructure
     apply_infrastructure
     orchestrate_worker_joins
-    display_final_status
 }
 
 # Run the main function

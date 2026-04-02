@@ -29,7 +29,7 @@ else
     CURRENT_MEM_BYTES=$(echo "$VM_INFO" | grep -A 5 "memory:" | grep "total:" | tr -dc '0-9')
     
     # Get State (Running, Stopped, etc.)
-    CURRENT_STATE=$(echo "$VM_INFO" | grep "state:" | head -n1 | awk '{print $2}')
+    CURRENT_STATE=$(echo "$VM_INFO" | grep "state:" | head -n1 | awk '{print $3}')
     # Calculate requested bytes (4G -> 4294967296)
     REQ_NUM=$(echo "$MEMORY" | tr -dc '0-9')
     REQUIRED_BYTES=$(( REQ_NUM * 1024 * 1024 * 1024 ))
@@ -102,12 +102,12 @@ else
     if [ "$SPECS_MATCH" = true ]; then
         echo "   ✅ Specs match. Keeping existing VM."
         if [ "$CURRENT_STATE" != "Running" ]; then
-            echo "   Starting stopped VM..."
+            echo "Starting stopped VM..."
             multipass start "$VM_NAME"
         fi
         SKIP_LAUNCH=true
     else
-        echo "   ⚠️  Specs do not match. Deleting and recreating '$VM_NAME'..."
+        echo "⚠️  Specs do not match. Deleting and recreating '$VM_NAME'..."
         multipass delete --purge "$VM_NAME"
         SKIP_LAUNCH=false
     fi

@@ -1,12 +1,5 @@
 # helmfile.yaml
 #
-# Declarative owner of:
-#   1. Longhorn install        (longhorn-values.yaml drives config)
-#   2. Longhorn post-install   (longhorn-jobs.yaml via hook — CRDs need to exist first)
-#   3. Kubernetes Dashboard    (depends on Longhorn being ready)
-#
-# longhorn-rebuild.sh is the companion script — it handles destruction/cleanup
-# before this file runs. This file only knows how to build, never destroy.
 repositories:
   - name: longhorn
     url: https://charts.longhorn.io
@@ -14,8 +7,10 @@ repositories:
     url: https://kubernetes-sigs.github.io/metrics-server/
   - name: bedag
     url: https://bedag.github.io/helm-charts/ 
+  #- name: kubernetes-dashboard
+  #  url: https://kubernetes.github.io/dashboard/
 releases:
-  # ── Kubernetes Dashboard ───────────────────────────────────────────────────
+  # ── Kubernetes Dashboard and Metrics Server ─────────────────────────────────
   - name: kubernetes-dashboard
     namespace: kubernetes-dashboard
     chart: https://github.com/kubernetes/dashboard/releases/download/kubernetes-dashboard-7.10.1/kubernetes-dashboard-7.10.1.tgz
@@ -23,51 +18,13 @@ releases:
     atomic: true
     timeout: 600
     values:
-      - extraArgs:
-          - --enable-skip-login
-          - --token-ttl=288000
-      - api:
-          containers:
-            resources:
-              limits:
-                cpu: 200m
-      - kong:
-          proxy:
-            http:
-              enabled: true
-            tls:
-              enabled: false
+      - ./kubernetes-dashboard-values.yaml
   - name: dashboard-admin-rbac
     namespace: kubernetes-dashboard
     chart: bedag/raw 
     version: 2.0.0
     values:
-      - resources:
-          - apiVersion: v1
-            kind: ServiceAccount
-            metadata:
-              name: admin-user
-              namespace: kubernetes-dashboard
-          - apiVersion: rbac.authorization.k8s.io/v1
-            kind: ClusterRoleBinding
-            metadata:
-              name: admin-user
-            roleRef:
-              apiGroup: rbac.authorization.k8s.io
-              kind: ClusterRole
-              name: cluster-admin
-            subjects:
-              - kind: ServiceAccount
-                name: admin-user
-                namespace: kubernetes-dashboard
-          - apiVersion: v1
-            kind: Secret
-            metadata:
-              name: admin-user-token
-              namespace: kubernetes-dashboard
-              annotations:
-                kubernetes.io/service-account.name: admin-user
-            type: kubernetes.io/service-account-token
+      - ./dashboard-admin-rbac-values.yaml
   - name: metrics-server
     namespace: kube-system
     chart: metrics-server/metrics-server
@@ -84,6 +41,9 @@ releases:
       - ./longhorn-values.yaml
     # Use a hook to apply your extra config after longhorn is ready
     hooks:
+      - events: ["presync"]
+        showlogs: true
+        command: "./longhorn-rebuild.sh"
       - events: ["postsync"]
         showlogs: true
         command: "kubectl"
@@ -91,18 +51,4 @@ releases:
 hooks:
   - events: ["cleanup"]
     showlogs: true
-    command: "/bin/bash"
-    args:
-      - "-c"
-      - |
-        echo "Stopping old port-forwards..."
-        kill $(lsof -t -i:8443) 2>/dev/null || true
-        kill -9 $(lsof -t -i :8080) 2> /dev/null || true
-        echo "Starting new tunnel to Dashboard..."
-        kubectl port-forward -n kubernetes-dashboard svc/kubernetes-dashboard-kong-proxy 8443:80 > /dev/null 2>&1 &
-        echo "Getting the Dashboard token..."
-        kubectl get secret admin-user-token -n kubernetes-dashboard -o jsonpath='{.data.token}' | base64 -d
-        echo "Starting new tunnel to longhorn..."
-        echo "✅ Dashboard is now live at http://localhost:8443"
-        kubectl port-forward -n longhorn-system svc/longhorn-frontend 8080:80 > /dev/null 2>&1 & 
-        echo "✅ Longhorn is now live at http://localhost:8080"
+    command: ./fwd.sh

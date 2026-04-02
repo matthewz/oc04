@@ -80,7 +80,7 @@ resource "null_resource" "setup_common_worker1" {
 # --- STAGE 3: WORKER 2 ---
 # 3a. Create Worker 2 VM
 resource "null_resource" "k8s_worker2" {
-  depends_on = [null_resource.k8s_master_init]
+  depends_on = [null_resource.k8s_master_init, null_resource.k8s_worker1]
   provisioner "local-exec" {
     command = "${path.module}/scripts/create-vm.sh worker ${local.worker2_name} ${var.worker_memory} ${var.worker_cpus} ${var.disk_size} ${local.out_dir}/worker2-ip.txt"
   }

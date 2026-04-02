@@ -41,15 +41,16 @@ VM_HEALTH_CHECK=$(cat << 'EOF'
     exit 0
 EOF
 )
-echo "🔍 Performing Deep Cluster Health Check on $MASTER_NAME..."
-if [[ "$FORCE_REBUILD" == "true" ]]; then
-    echo "🧨 FORCE_REBUILD detected. Skipping health checks..."
-elif multipass exec $MASTER_NAME -- bash -c "$VM_HEALTH_CHECK"; then
-    echo "✅ Cluster is Deep-Healthy. Skipping initialization."
-    exit 0
-else
-    echo "⚠️  Cluster health check failed. Proceeding with Kubeadm Reset and Init..."
-fi
+
+#echo "🔍 Performing Deep Cluster Health Check on $MASTER_NAME..."
+#if [[ "$FORCE_REBUILD" == "true" ]]; then
+#    echo "🧨 FORCE_REBUILD detected. Skipping health checks..."
+#elif multipass exec $MASTER_NAME -- bash -c "$VM_HEALTH_CHECK"; then
+#    echo "✅ Cluster is Deep-Healthy. Skipping initialization."
+#    exit 0
+#else
+#    echo "⚠️  Cluster health check failed. Proceeding with Kubeadm Reset and Init..."
+#fi
 
 # Only then run kubeadm reset/init...
 # 1. PRE-FLIGHT CLEANUP (The SRE Way)
