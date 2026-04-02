@@ -1,4 +1,3 @@
-
 terraform {
   required_version = ">= 1.0"
   required_providers {
@@ -46,18 +45,23 @@ resource "null_resource" "k8s_master" {
 }
 # 1b. Install K8s Binaries on Master
 resource "null_resource" "setup_common_master" {
+  triggers = {
+    vm_id = null_resource.k8s_master.id
+  }
   depends_on = [null_resource.k8s_master]
   provisioner "local-exec" {
     command = "${path.module}/scripts/install-k8s-common.sh ${local.master_name} ${var.k8s_version}"
   }
 }
+
 # 1c. Initialize Cluster
 resource "null_resource" "k8s_master_init" {
   depends_on = [null_resource.setup_common_master]
   provisioner "local-exec" {
-    command = "MASTER_IP=$(cat ${local.out_dir}/master-ip.txt) && ${path.module}/scripts/init-master.sh ${local.master_name} $MASTER_IP ${var.pod_network_cidr} ${var.service_cidr} ${path.module}"
+    command = "FORCE_REBUILD=${var.force_rebuild} MASTER_IP=$(cat ${local.out_dir}/master-ip.txt) && ${path.module}/scripts/init-master.sh ${local.master_name} $MASTER_IP ${var.pod_network_cidr} ${var.service_cidr} ${path.module}"
   }
 }
+
 # --- STAGE 2: WORKER 1 ---
 # 2a. Create Worker 1 VM
 resource "null_resource" "k8s_worker1" {
@@ -73,18 +77,10 @@ resource "null_resource" "setup_common_worker1" {
     command = "${path.module}/scripts/install-k8s-common.sh ${local.worker1_name} ${var.k8s_version}"
   }
 }
-# 2c. Join Worker 1 to Cluster
-resource "null_resource" "k8s_worker1_join" {
-  depends_on = [null_resource.setup_common_worker1]
-  provisioner "local-exec" {
-    # Change $MASTER_IP to ${local.master_name}
-    command = "${path.module}/scripts/join-worker.sh ${local.worker1_name} ${local.master_name} ${path.module}"
-  }
-}
 # --- STAGE 3: WORKER 2 ---
 # 3a. Create Worker 2 VM
 resource "null_resource" "k8s_worker2" {
-  depends_on = [null_resource.k8s_worker1_join]
+  depends_on = [null_resource.k8s_master_init]
   provisioner "local-exec" {
     command = "${path.module}/scripts/create-vm.sh worker ${local.worker2_name} ${var.worker_memory} ${var.worker_cpus} ${var.disk_size} ${local.out_dir}/worker2-ip.txt"
   }
@@ -96,18 +92,13 @@ resource "null_resource" "setup_common_worker2" {
     command = "${path.module}/scripts/install-k8s-common.sh ${local.worker2_name} ${var.k8s_version}"
   }
 }
-# 3c. Join Worker 2 to Cluster
-resource "null_resource" "k8s_worker2_join" {
-  depends_on = [null_resource.setup_common_worker2]
-  provisioner "local-exec" {
-    # Change $MASTER_IP to ${local.master_name}
-    command = "${path.module}/scripts/join-worker.sh ${local.worker2_name} ${local.master_name} ${path.module}"
-  }
-}
 # --- STAGE 4: FINALIZE ---
 # 4. Pull Kubeconfig to local Mac
 resource "null_resource" "setup_kubeconfig" {
-  depends_on = [null_resource.k8s_worker2_join]
+  depends_on = [
+    null_resource.k8s_master_init, # Wait for the cluster to actually be initialized
+    null_resource.k8s_master       # Wait for the VM (and the IP file) to be ready
+  ]
   provisioner "local-exec" {
     command = "MASTER_IP=$(cat ${local.out_dir}/master-ip.txt) && ${path.module}/scripts/setup-kubeconfig.sh ${local.master_name} $MASTER_IP config-k8s-multipass"
   }

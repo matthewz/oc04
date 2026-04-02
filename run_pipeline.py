@@ -10,6 +10,13 @@ import sys
 import os
 from datetime import datetime
 from pathlib import Path
+
+if "--force" in sys.argv:
+    os.environ["FORCE_REBUILD"] = "true"
+    print("🧨 Force Rebuild enabled via command line flag.")
+    # 2. REMOVE the flag from sys.argv so the pipeline parser doesn't see it
+    sys.argv.remove("--force")
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
 def log(message: str, verbose: bool = True):
     """Print a timestamped status message — mimics `set -x` visibility."""

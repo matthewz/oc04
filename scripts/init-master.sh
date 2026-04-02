@@ -14,6 +14,44 @@ echo "Master IP:        $MASTER_IP"
 echo "Pod Network CIDR: $POD_CIDR"
 echo "Service CIDR:     $SVC_CIDR"
 echo "=================================================="
+
+# We define the check as a string of bash code to be sent into the VM
+VM_HEALTH_CHECK=$(cat << 'EOF'
+    # 1. Check Kubelet
+    if ! sudo systemctl is-active --quiet kubelet; then exit 1; fi
+    
+    # 2. Check Admin Config
+    if [ ! -f /etc/kubernetes/admin.conf ]; then exit 1; fi
+    
+    # 3. Check Certs
+    if ! sudo kubeadm certs check-expiration >/dev/null 2>&1; then exit 1; fi
+    
+    # 4. Check API Response (3 attempts for cold starts)
+    SUCCESS=1
+    for i in {1..3}; do
+        if sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf get nodes >/dev/null 2>&1; then
+            SUCCESS=0; break
+        fi
+        sleep 2
+    done
+    if [ $SUCCESS -ne 0 ]; then exit 1; fi
+    # 5. Check Static Pods
+    if [ ! -f /etc/kubernetes/manifests/kube-apiserver.yaml ]; then exit 1; fi
+    
+    exit 0
+EOF
+)
+echo "🔍 Performing Deep Cluster Health Check on $MASTER_NAME..."
+if [[ "$FORCE_REBUILD" == "true" ]]; then
+    echo "🧨 FORCE_REBUILD detected. Skipping health checks..."
+elif multipass exec $MASTER_NAME -- bash -c "$VM_HEALTH_CHECK"; then
+    echo "✅ Cluster is Deep-Healthy. Skipping initialization."
+    exit 0
+else
+    echo "⚠️  Cluster health check failed. Proceeding with Kubeadm Reset and Init..."
+fi
+
+# Only then run kubeadm reset/init...
 # 1. PRE-FLIGHT CLEANUP (The SRE Way)
 # If a previous attempt failed, kubeadm will refuse to run.
 # We force a reset to clear out the "ghosts" of previous failures.

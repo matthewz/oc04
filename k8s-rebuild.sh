@@ -49,7 +49,9 @@ initialize_terraform() {
 # Function to plan infrastructure
 plan_infrastructure() {
     echo -e "${GREEN}📝 Phase 4: Planning Infrastructure...${NC}"
-    terraform plan -out=./output.tfplan -input=false
+    #terraform plan -var="force_rebuild='${FORCE_REBUILD}'" -out=output.tfplan
+    terraform plan -out=output.tfplan
+
 }
 
 # Function to apply infrastructure
