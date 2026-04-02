@@ -4,9 +4,6 @@ settings:
   verbose: true
   sudo_keepalive: true
 steps:
-  - name: mac_wrangle
-    script: ./mac_wrangle.sh
-    mode: foreground
   - name: k8s_rebuild
     script: ./k8s-rebuild.sh
     mode: background           
@@ -14,16 +11,19 @@ steps:
     wrap_with_dates: true
   - name: wait_for_cluster
     script: >
-      TRIES=0; MAX=60;
-      until kubectl get nodes --request-timeout=5s >/dev/null 2>&1; do
-        TRIES=$((TRIES+1));
-        if [ $TRIES -ge $MAX ]; then
-          echo "❌ Cluster never became ready after $((MAX*10))s — aborting";
-          exit 1;
-        fi;
-        echo "   ...waiting for cluster API (attempt $TRIES/$MAX)";
-        sleep 10;
-      done;
+      TRIES=0
+      MAX_TRIES=60
+      until kubectl get nodes --request-timeout=5s 1> /dev/null 2>&1
+      do
+        TRIES=$((TRIES+1))
+        if [ $TRIES -ge $MAX_TRIES ]
+        then
+          echo "❌ Cluster never became ready after $((MAX_TRIES*10))s — aborting"
+          exit 1 
+        fi 
+        echo "   ...waiting for cluster API (attempt $TRIES/$MAX_TRIES)"
+        sleep 10 
+      done 
       echo "✅ Cluster API is responding"
     mode: foreground
   - name: apps                  
@@ -35,3 +35,4 @@ steps:
     mode: source
   - name: oclaw_source
     script: ./oclaw
+    mode: source

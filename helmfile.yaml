@@ -37,18 +37,6 @@ releases:
               enabled: true
             tls:
               enabled: false
-    hooks:
-      - events: ["postsync"]
-        showlogs: true
-        command: "/bin/bash"
-        args:
-          - "-c"
-          - |
-            echo "Stopping old port-forwards..."
-            kill $(lsof -t -i:8443) 2>/dev/null || true
-            echo "Starting new tunnel to Dashboard..."
-            kubectl port-forward -n kubernetes-dashboard svc/kubernetes-dashboard-kong-proxy 8443:80 > /dev/null 2>&1 &
-            echo "✅ Dashboard is now live at http://localhost:8443"
   - name: dashboard-admin-rbac
     namespace: kubernetes-dashboard
     chart: bedag/raw 
@@ -96,13 +84,30 @@ releases:
     version: "1.6.2"
     values:
       - ./longhorn-values.yaml
-    hooks:
-      # Runs after Helm confirms Longhorn pods are Ready.
-      # At this point the RecurringJob CRD exists — safe to apply.
-      - events: ["postsync"]
-        showlogs: true
-        command: "kubectl"
-        args:
-          - "apply"
-          - "-f"
-          - "./longhorn-jobs.yaml"
+  - name: longhorn-extended-config
+    namespace: longhorn-system
+    chart: bedag/raw
+    version: 2.0.0
+    needs:
+      - longhorn-system/longhorn # Ensures Longhorn installs first
+    values:
+      - resources:
+          - {{ readFile "longhorn-jobs.yaml" | fromYaml }}
+hooks:
+  - events: ["cleanup"]
+    showlogs: true
+    command: "/bin/bash"
+    args:
+      - "-c"
+      - |
+        echo "Stopping old port-forwards..."
+        kill $(lsof -t -i:8443) 2>/dev/null || true
+        kill -9 $(lsof -t -i :8080) 2> /dev/null || true
+        echo "Starting new tunnel to Dashboard..."
+        kubectl port-forward -n kubernetes-dashboard svc/kubernetes-dashboard-kong-proxy 8443:80 > /dev/null 2>&1 &
+        echo "Getting the Dashboard token..."
+        kubectl get secret admin-user-token -n kubernetes-dashboard -o jsonpath='{.data.token}' | base64 -d
+        echo "Starting new tunnel to longhorn..."
+        echo "✅ Dashboard is now live at http://localhost:8443"
+        kubectl port-forward -n longhorn-system svc/longhorn-frontend 8080:80 > /dev/null 2>&1 & 
+        echo "✅ Longhorn is now live at http://localhost:8080"
