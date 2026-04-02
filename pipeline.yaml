@@ -22,6 +22,6 @@ steps:
   - name: demo_source
     script: ./demo
     mode: source
-  - name: oclaw_source
-    script: ./oclaw
-    mode: source
+#  - name: oclaw_source
+#    script: ./oclaw
+#    mode: source
