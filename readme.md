@@ -13,7 +13,7 @@ First, a few requirements:
 Run each of the following using ".(dot) $FILENAME", or, running the script as shown in bash prompt:
 
 ```
-python3 run_pipeline.py
+python run_pipeline.py
 ```
 See howto file for useful commands.
 
