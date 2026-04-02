@@ -45,3 +45,5 @@ set +x
 
 #multipass stop --all
 #multipass start k8s-master
+
+kubectl get secret $(kubectl get serviceaccount kubernetes-dashboard-admin -n kubernetes-dashboard -o jsonpath="{.secrets[0].name}") -n kubernetes-dashboard -o jsonpath="{.data.token}" | base64 --decode
