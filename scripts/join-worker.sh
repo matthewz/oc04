@@ -1,20 +1,17 @@
 #!/bin/bash
 set -e
 set -o pipefail
-# Arguments passed from Terraform:
-WORKER_NAME=$1  # e.g., k8s-worker1
-MASTER_NAME=$2  # e.g., k8s-master
-PROJECT_ROOT=$3 # e.g., ${path.module}
+WORKER_NAME=$1
+MASTER_NAME=$2
+PROJECT_ROOT=$3
 echo "=================================================="
 echo "🔗 Preparing to join $WORKER_NAME to $MASTER_NAME..."
 echo "=================================================="
-# 1. Wait for Master API and Kubeadm to be ready
+# 1. Wait for Master to be ready
 echo "⏳ Waiting for Master ($MASTER_NAME) to be ready..."
 MAX_RETRIES=60
 COUNT=0
-# Loop until kubeadm is responsive on the master VM
-until multipass exec "$MASTER_NAME" -- sudo kubeadm token list 2>/dev/null
-do
+until multipass exec "$MASTER_NAME" -- sudo kubeadm token list 2>/dev/null; do
     COUNT=$((COUNT+1))
     if [ $COUNT -gt $MAX_RETRIES ]; then
         echo "❌ Master not ready after 10 minutes. Exiting."
@@ -24,23 +21,40 @@ do
     sleep 10
 done
 echo "✅ Master is ready."
-# 2. Check if worker is already part of the cluster
-# This prevents errors if you run the script twice
-if multipass exec "$WORKER_NAME" -- sudo test -f /etc/kubernetes/kubelet.conf; then
-    echo "✅ $WORKER_NAME is already part of a cluster. Skipping join."
-    exit 0
+# 2. Only drain/delete if the node already exists in the cluster
+echo "🧹 Checking for existing $WORKER_NAME registration..."
+NODE_EXISTS=$(multipass exec "$MASTER_NAME" -- \
+    sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf \
+    get node "$WORKER_NAME" --no-headers 2>/dev/null | wc -l | tr -d ' ')
+if [ "$NODE_EXISTS" -gt "0" ]; then
+    echo "   Found existing node, draining and deleting..."
+    multipass exec "$MASTER_NAME" -- \
+        sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf \
+        drain "$WORKER_NAME" \
+        --ignore-daemonsets \
+        --delete-emptydir-data \
+        --force \
+        --timeout=30s 2>/dev/null || true
+    multipass exec "$MASTER_NAME" -- \
+        sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf \
+        delete node "$WORKER_NAME" 2>/dev/null || true
+    echo "   ✅ Existing node removed."
+else
+    echo "   ℹ️  No existing node found, skipping drain/delete."
 fi
-# 3. Generate a fresh join command from the Master VM
+# 3. Reset kubeadm state on the worker
+echo "🔄 Resetting $WORKER_NAME..."
+multipass exec "$WORKER_NAME" -- sudo kubeadm reset -f
+multipass exec "$WORKER_NAME" -- sudo rm -rf /etc/kubernetes /var/lib/kubelet
+# 4. Generate a fresh join command from the Master
 echo "🎟️  Requesting join token from Master..."
-# We use -- (double dash) and tail -1 to get the exact command
 JOIN_CMD=$(multipass exec "$MASTER_NAME" -- sudo kubeadm token create --print-join-command 2>/dev/null | tail -1)
-# Validate that we actually received a 'kubeadm join' command
 if [[ -z "$JOIN_CMD" || ! "$JOIN_CMD" == *"kubeadm join"* ]]; then
     echo "❌ Failed to retrieve join command from $MASTER_NAME. Exiting."
     exit 1
 fi
 echo "📋 Join command retrieved successfully."
-# 4. Execute the join command inside the worker VM
+# 5. Join the worker to the cluster
 echo "🚀 Joining $WORKER_NAME to the cluster..."
 multipass exec "$WORKER_NAME" -- sudo bash -c "$JOIN_CMD"
 echo "✅ $WORKER_NAME successfully joined!"
