@@ -75,8 +75,6 @@ releases:
       - args:
           - --kubelet-insecure-tls
   # ── Longhorn ──────────────────────────────────────────────────────────────
-  # helmfile owns the install. longhorn-rebuild.sh owns the cleanup.
-  # longhorn-jobs.yaml is applied via hook AFTER CRDs exist.
   - name: longhorn
     namespace: longhorn-system
     createNamespace: true
@@ -84,15 +82,12 @@ releases:
     version: "1.6.2"
     values:
       - ./longhorn-values.yaml
-  - name: longhorn-extended-config
-    namespace: longhorn-system
-    chart: bedag/raw
-    version: 2.0.0
-    needs:
-      - longhorn-system/longhorn # Ensures Longhorn installs first
-    values:
-      - resources:
-          - {{ readFile "longhorn-jobs.yaml" | fromYaml }}
+    # Use a hook to apply your extra config after longhorn is ready
+    hooks:
+      - events: ["postsync"]
+        showlogs: true
+        command: "kubectl"
+        args: ["apply", "-f", "longhorn-jobs.yaml", "-n", "longhorn-system"]
 hooks:
   - events: ["cleanup"]
     showlogs: true

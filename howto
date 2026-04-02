@@ -33,4 +33,15 @@ multipass exec k8s-master -- sudo journalctl -u containerd -f
 helm repo remove kubernetes-dashboard || true
 
 
+set -x
 
+multipass info k8s-master
+
+multipass exec k8s-master -- ls /
+
+multipass exec k8s-master -- sudo kubectl get nodes
+
+set +x
+
+#multipass stop --all
+#multipass start k8s-master

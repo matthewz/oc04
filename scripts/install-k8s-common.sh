@@ -6,11 +6,16 @@ K8S_VERSION=$2  # Example: 1.28.0-1.1
 echo "=================================================="
 echo "  Installing K8s Common Binaries on $NODE_NAME   "
 echo "=================================================="
+set -x
 # 0. If kubelet is already there, don't waste CPU/Disk reinstalling
-if multipass exec "$NODE_NAME" -- which kubelet > /dev/null 2>&1; then
+echo "Checking for kubelet..."
+K8S_PATH=$(multipass exec "$NODE_NAME" -- which kubelet < /dev/null 2>&1) || true
+if [[ "$K8S_PATH" == *"kubelet"* ]]; then
    echo "✅ K8s already installed on $NODE_NAME, skipping..."
    exit 0
 fi
+set +x
+
 # Extract the minor version (e.g., "1.28") from the full version string
 # (e.g., "1.28.0-1.1") so we can build the correct repo URL dynamically.
 # FIX: Previously the repo URL was hardcoded to v1.28 regardless of the

@@ -62,34 +62,17 @@ apply_infrastructure() {
 # Function to orchestrate worker joins
 orchestrate_worker_joins() {
     echo -e "${BLUE}🔗 Phase 6: Orchestrating Worker Joins...${NC}"
-    
-    # Wait for the Master to finish writing the join file to your Mac
-    COUNT=0
-    echo "⏳ Waiting for Master to generate join command..."
-    while [ ! -f "$JOIN_FILE" ]; do
-        if [ $COUNT -ge $MAX_RETRIES ]; then
-            echo -e "${RED}❌ Error: Join command file never appeared in $JOIN_FILE${NC}"
-            exit 1
-        fi
-        echo "   ...still waiting for Master (Attempt $((COUNT+1))/$MAX_RETRIES)"
-        sleep 10
-        COUNT=$((COUNT+1))
-    done
-
-    # Read the join command into a variable on your Mac
-    JOIN_CMD=$(cat "$JOIN_FILE" | tr -d '\r\n' | sed 's/#!/ /g' | sed 's/\/bin\/bash/ /g')
-    echo -e "${GREEN}✅ Join command captured!${NC}"
-
-    # Execute the join on all workers
-    WORKERS=$(multipass list --format csv | awk -F, '$1 ~ /worker/ {print $1}')
+    MASTER_NAME="k8s-master"
+    WORKERS=$(multipass list --format csv | awk -F, 'NR>1 && $1 ~ /worker/ {print $1}')
+    if [[ -z "$WORKERS" ]]; then
+        echo -e "${RED}❌ No worker VMs found. Exiting.${NC}"
+        exit 1
+    fi
     for WORKER in $WORKERS; do
-        echo -e "${BLUE}🔄 Resetting $WORKER before join...${NC}"
-        multipass exec "$WORKER" -- sudo kubeadm reset -f
-        multipass exec "$WORKER" -- sudo rm -rf /etc/kubernetes /var/lib/kubelet
-        echo -e "${BLUE}🚀 Joining $WORKER to the cluster...${NC}"
-        multipass exec "$WORKER" -- sudo bash -c "$JOIN_CMD"
+        sleep $((RANDOM % 5)) 
+        bash ./scripts/join-worker.sh "$WORKER" "$MASTER_NAME" "$(pwd)"
     done
-    echo -e "${GREEN}✅ Cluster rebuild complete!${NC}"
+    echo -e "${GREEN}✅ All workers joined. Cluster rebuild complete!${NC}"
 }
 
 # Function to display final status

@@ -2,7 +2,7 @@
 # pipeline.yaml
 settings:
   verbose: true
-  sudo_keepalive: true
+  #sudo_keepalive: true
 steps:
   - name: k8s_rebuild
     script: ./k8s-rebuild.sh
@@ -10,13 +10,13 @@ steps:
     log: k8s-rebuild_out.txt
     wrap_with_dates: true
   - name: wait_for_cluster
-    script: >
+    script: |
       TRIES=0
       MAX_TRIES=60
       until kubectl get nodes --request-timeout=5s 1> /dev/null 2>&1
       do
         TRIES=$((TRIES+1))
-        if [ $TRIES -ge $MAX_TRIES ]
+        if [ "$TRIES" -ge "$MAX_TRIES" ]
         then
           echo "❌ Cluster never became ready after $((MAX_TRIES*10))s — aborting"
           exit 1 

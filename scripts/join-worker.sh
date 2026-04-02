@@ -21,27 +21,19 @@ until multipass exec "$MASTER_NAME" -- sudo kubeadm token list 2>/dev/null; do
     sleep 10
 done
 echo "✅ Master is ready."
-# 2. Only drain/delete if the node already exists in the cluster
+
 echo "🧹 Checking for existing $WORKER_NAME registration..."
-NODE_EXISTS=$(multipass exec "$MASTER_NAME" -- \
-    sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf \
-    get node "$WORKER_NAME" --no-headers 2>/dev/null | wc -l | tr -d ' ')
-if [ "$NODE_EXISTS" -gt "0" ]; then
-    echo "   Found existing node, draining and deleting..."
-    multipass exec "$MASTER_NAME" -- \
-        sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf \
-        drain "$WORKER_NAME" \
-        --ignore-daemonsets \
-        --delete-emptydir-data \
-        --force \
-        --timeout=30s 2>/dev/null || true
-    multipass exec "$MASTER_NAME" -- \
-        sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf \
-        delete node "$WORKER_NAME" 2>/dev/null || true
-    echo "   ✅ Existing node removed."
-else
+# 1. Capture the check in a variable first
+# We use '|| true' to ensure the command itself doesn't "crash" the script if the node is missing
+CHECK_NODE=$(multipass exec "$MASTER_NAME" -- sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf get node "$WORKER_NAME" --no-headers 2>&1 || echo "not_found")
+if [[ "$CHECK_NODE" == *"not_found"* ]]; then
     echo "   ℹ️  No existing node found, skipping drain/delete."
+else
+    echo "   Found existing node, removing..."
+    multipass exec "$MASTER_NAME" -- sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf delete node "$WORKER_NAME" --wait=false
+    echo "   ✅ Existing node removed."
 fi
+
 # 3. Reset kubeadm state on the worker
 echo "🔄 Resetting $WORKER_NAME..."
 multipass exec "$WORKER_NAME" -- sudo kubeadm reset -f
