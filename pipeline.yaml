@@ -27,7 +27,7 @@ steps:
       echo "✅ Cluster API is responding"
     mode: foreground
   - name: apps                  
-    script: helmfile apply      
+    script: helmfile apply > helmfile_apply_out.txt 2>&1
     mode: foreground   
     log: apps_out.txt
   - name: demo_source
