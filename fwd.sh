@@ -1,5 +1,7 @@
 #!/bin/bash
 
+
+set -x
         echo "Stopping old port-forwards..."
         kill $(lsof -t -i:8443) 2>/dev/null || true
         kill -9 $(lsof -t -i :8080) 2> /dev/null || true
@@ -12,4 +14,5 @@
         kubectl port-forward -n longhorn-system svc/longhorn-frontend 8080:80 > /dev/null 2>&1 & 
         echo "✅ Longhorn is now live at http://localhost:8080"
 
-exit 0
+set +x
+

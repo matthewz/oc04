@@ -1,5 +1,4 @@
 # helmfile.yaml
-#
 repositories:
   - name: longhorn
     url: https://charts.longhorn.io
@@ -7,31 +6,15 @@ repositories:
     url: https://kubernetes-sigs.github.io/metrics-server/
   - name: bedag
     url: https://bedag.github.io/helm-charts/ 
-  #- name: kubernetes-dashboard
-  #  url: https://kubernetes.github.io/dashboard/
 releases:
-  # ── Kubernetes Dashboard and Metrics Server ─────────────────────────────────
-  - name: kubernetes-dashboard
-    namespace: kubernetes-dashboard
-    chart: https://github.com/kubernetes/dashboard/releases/download/kubernetes-dashboard-7.10.1/kubernetes-dashboard-7.10.1.tgz
-    createNamespace: true
-    atomic: true
-    timeout: 600
-    values:
-      - ./kubernetes-dashboard-values.yaml
-  - name: dashboard-admin-rbac
-    namespace: kubernetes-dashboard
-    chart: bedag/raw 
-    version: 2.0.0
-    values:
-      - ./dashboard-admin-rbac-values.yaml
   - name: metrics-server
     namespace: kube-system
     chart: metrics-server/metrics-server
     values:
-      - args:
+      - defaultArgs: # Correct key for the metrics-server chart
+          - --cert-dir=/tmp
           - --kubelet-insecure-tls
-  # ── Longhorn ──────────────────────────────────────────────────────────────
+          - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
   - name: longhorn
     namespace: longhorn-system
     createNamespace: true
@@ -39,7 +22,6 @@ releases:
     version: "1.6.2"
     values:
       - ./longhorn-values.yaml
-    # Use a hook to apply your extra config after longhorn is ready
     hooks:
       - events: ["presync"]
         showlogs: true
@@ -48,6 +30,22 @@ releases:
         showlogs: true
         command: "kubectl"
         args: ["apply", "-f", "longhorn-jobs.yaml", "-n", "longhorn-system"]
+  - name: kubernetes-dashboard
+    namespace: kubernetes-dashboard
+    chart: https://github.com/kubernetes/dashboard/releases/download/kubernetes-dashboard-7.10.1/kubernetes-dashboard-7.10.1.tgz
+    createNamespace: true
+    atomic: false  # SET TO FALSE SO YOU CAN SEE THE ERRORS IF IT FAILS
+    timeout: 600
+    values:
+      - ./kubernetes-dashboard-values.yaml
+  - name: dashboard-admin-rbac
+    namespace: kubernetes-dashboard
+    chart: bedag/raw 
+    version: 2.0.0
+    needs: # Don't try this until the dashboard exists
+      - kubernetes-dashboard
+    values:
+      - ./dashboard-admin-rbac-values.yaml
 hooks:
   - events: ["cleanup"]
     showlogs: true
