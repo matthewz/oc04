@@ -22,59 +22,6 @@ for arg in "$@"; do
     esac
 done
 
-# Check the external SSD
-check_storage_volume() {
-    echo "🔍 Checking external storage volume..."
-    
-    if [ ! -d "/Volumes/PRO-G40/multipassd" ]; then
-        echo -e "${RED}❌ ERROR: /Volumes/PRO-G40 is not mounted.${NC}"
-        echo "    Multipass VM data lives there — aborting to prevent data loss."
-        exit 1
-    fi
-    
-    # In safe mode, warn if VMs already exist before destroying them
-    if [ "$SAFE_MODE" = true ]; then
-        VM_COUNT=$(multipass list --format csv | grep -c "k8s-" || true)
-        if [ "$VM_COUNT" -gt 0 ]; then
-            echo -e "${RED}⚠️  SAFE MODE: Found $VM_COUNT existing k8s VM(s).${NC}"
-            echo "    Run without --safe to delete and rebuild them."
-            exit 1
-        fi
-    fi
-    
-    echo -e "${GREEN}✅ Storage volume healthy${NC}"
-}
-
-# Function to exclude directory from Time Machine
-exclude_from_time_machine() {
-    echo "Excluding multipass directory from time machine..."
-    set -x
-    sudo tmutil addexclusion "$MULTIPASS_DIR"
-    sudo tmutil isexcluded "$MULTIPASS_DIR"
-    set +x
-}
-
-# Function to pause and re-enable Time Machine
-pause_time_machine() {
-    echo "⏸️  Pausing Time Machine for duration of provisioning..."
-    set -x
-    sudo tmutil disable
-    sudo tmutil status
-    set +x
-
-    # Ensure Time Machine is ALWAYS re-enabled when script exits
-    #trap 'echo "▶️  Re-enabling Time Machine..."; sudo tmutil enable' EXIT
-}
-
-# Function to check if Multipass is installed
-check_multipass_installed() {
-    echo -e "${BLUE}🚀 Starting Kubernetes Rebuild Process...${NC}"
-    if ! command -v multipass &> /dev/null; then
-        echo -e "${RED}❌ Error: Multipass is not installed.${NC}"
-        exit 1
-    fi
-}
-
 # Function to destroy existing infrastructure
 destroy_infrastructure() {
     export REPLY="Y"
@@ -155,13 +102,9 @@ display_final_status() {
 
 # Main function
 main() {
-    check_storage_volume
-    exclude_from_time_machine
-    pause_time_machine
     echo "=================================================="
     echo "      Starting Kubernetes Cluster Rebuild"
     echo "=================================================="
-    check_multipass_installed
     clean_workspace         
     initialize_terraform  
     destroy_infrastructure 

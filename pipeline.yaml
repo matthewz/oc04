@@ -6,7 +6,7 @@ settings:
 steps:
   - name: k8s_rebuild
     script: ./k8s-rebuild.sh
-    mode: background           
+    mode: foreground           
     log: k8s-rebuild_out.txt
     wrap_with_dates: true
   - name: wait_for_cluster
