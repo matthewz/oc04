@@ -1,20 +1,35 @@
 #!/bin/bash
-set -e # Exit on error
-echo "Stopping old port-forwards..."
-# Kill processes using the ports
-kill $(lsof -t -i:8443) 2>/dev/null || true
-kill $(lsof -t -i:8080) 2>/dev/null || true
-echo "Starting new tunnel to Bitnami Dashboard..."
-# Bitnami service is named 'kubernetes-dashboard' by default
-# We map local 8443 to the container's 443 (HTTPS)
-kubectl port-forward -n kubernetes-dashboard svc/kubernetes-dashboard 8443:443 > /dev/null 2>&1 &
-echo "Starting new tunnel to Longhorn..."
-kubectl port-forward -n longhorn-system svc/longhorn-frontend 8080:80 > /dev/null 2>&1 &
 echo "---------------------------------------------------------------"
-echo "✅ Dashboard: https://localhost:8443"
-echo "✅ Longhorn:  http://localhost:8080"
+echo "🛑 Stopping old port-forwards..."
 echo "---------------------------------------------------------------"
-echo "🔑 Generating Admin Token..."
-# Using Bitnami's default admin service account name
-kubectl -n kubernetes-dashboard create token kubernetes-dashboard-admin --duration=24h
+kill -9 $(lsof -t -i :8001)  2>/dev/null || true
+kill -9 $(lsof -t -i :8080)  2>/dev/null || true
+kill -9 $(lsof -t -i :8443)  2>/dev/null || true
+kill -9 $(lsof -t -i :18789) 2>/dev/null || true
+kill -9 $(lsof -t -i :32000) 2>/dev/null || true
 echo "---------------------------------------------------------------"
+echo "🚀 Starting port-forwards..."
+echo "---------------------------------------------------------------"
+set -x
+kubectl proxy \
+    1> /tmp/kubectl_proxy_out.txt 2>&1 &
+kubectl port-forward -n longhorn-system      svc/longhorn-frontend    8080:80    \
+    1> /tmp/longhorn_out.txt  2>&1 &
+kubectl port-forward -n kubernetes-dashboard svc/kubernetes-dashboard 8443:443   \
+    1> /tmp/8443.txt          2>&1 &
+kubectl port-forward -n oclaw01              svc/oclaw01-service     18789:18789 \
+    1> /tmp/oclaw01_out.txt   2>&1 &
+kubectl port-forward -n jenkins              svc/jenkins-service     32000:8080  \
+    1> /tmp/jenkins_out.txt   2>&1 &
+set +x
+echo "---------------------------------------------------------------"
+echo "✅ kubectl proxy: http://localhost:8001"
+echo "✅ Longhorn:      http://localhost:8080"
+echo "✅ Dashboard:     https://localhost:8443"
+echo "✅ oclaw01:       http://localhost:18789"
+echo "✅ Jenkins:       http://localhost:32000"
+#echo "---------------------------------------------------------------"
+#echo "🔑 Generating Admin Token (valid 24h)..."
+#echo "---------------------------------------------------------------"
+#kubectl -n kubernetes-dashboard create token admin-user --duration=24h
+#echo "---------------------------------------------------------------"

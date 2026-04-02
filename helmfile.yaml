@@ -3,9 +3,27 @@ repositories:
     url: https://charts.longhorn.io
   - name: metrics-server
     url: https://kubernetes-sigs.github.io/metrics-server/
-  - name: bitnami
-    url: https://charts.bitnami.com/bitnami
+  - name: bedag
+    url: https://bedag.github.io/helm-charts/
 releases:
+  - name: kubernetes-dashboard
+    namespace: kubernetes-dashboard
+    chart: https://github.com/kubernetes/dashboard/releases/download/kubernetes-dashboard-7.10.1/kubernetes-dashboard-7.10.1.tgz
+    createNamespace: true
+    values:
+      - kong:
+          enabled: true
+      - auth:
+          enabled: true
+    hooks:
+      - events: ["postsync"]
+        showlogs: true
+        command: "./fwd.sh"
+  - name: dashboard-admin-rbac
+    namespace: kubernetes-dashboard
+    chart: bedag/raw
+    values:
+      - dashboard-admin-rbac-values.yaml
   - name: metrics-server
     namespace: kube-system
     chart: metrics-server/metrics-server
@@ -29,29 +47,3 @@ releases:
         showlogs: true
         command: "kubectl"
         args: ["apply", "-f", "longhorn-jobs.yaml", "-n", "longhorn-system"]
-  - name: kubernetes-dashboard
-    namespace: kubernetes-dashboard
-    chart: bitnami/kubernetes-dashboard
-    createNamespace: true
-    values:
-      # Automatically creates the 'kubernetes-dashboard-admin' ServiceAccount and RBAC
-      - admin:
-          enabled: true
-      # Ensures the login page appears
-      - auth:
-          enabled: true
-    hooks:
-      # This runs your updated fwd.sh which now handles:
-      # 1. Killing old tunnels
-      # 2. Starting new Dashboard tunnel
-      # 3. Starting new Longhorn tunnel
-      # 4. Generating and printing the access token
-      - events: ["postsync"]
-        showlogs: true
-        command: "./fwd.sh"
-# Global hooks (optional, cleanup runs on helmfile destruction)
-hooks:
-  - events: ["cleanup"]
-    showlogs: true
-    command: "sh"
-    args: ["-c", "kill $(lsof -t -i:8443,8080) 2>/dev/null || true"]

@@ -4,6 +4,7 @@ export KUBECONFIG=~/.kube/config-k8s-multipass
 GREEN='\033[0;32m'
 NC='\033[0m'
 LONGHORN_VERSION="1.6.2"
+
 # ── Phase 1: Deep Clean ───────────────────────────────────────────────────────
 # This script's ONLY job now: make the cluster safe for helmfile to install into.
 # Helmfile owns the install. We own the destruction.
@@ -11,6 +12,7 @@ echo "🛑 Phase 1: Deep Cleaning Old Longhorn..."
 echo "  1. Clearing PVCs/PVs..."
 kubectl delete pvc --all --all-namespaces --wait=false 2>/dev/null || true
 kubectl delete pv  --all               --wait=false 2>/dev/null || true
+
 echo "  2. Force-clearing stuck finalizers..."
 for res in volumes.longhorn.io engines.longhorn.io replicas.longhorn.io backups.longhorn.io; do
     if kubectl get "$res" -n longhorn-system > /dev/null 2>&1; then
@@ -22,6 +24,7 @@ for res in volumes.longhorn.io engines.longhorn.io replicas.longhorn.io backups.
             -f - 2>/dev/null || true
     fi
 done
+
 echo "  3. Triggering official Longhorn uninstaller..."
 kubectl -n longhorn-system patch settings.longhorn.io deinstalling-indicator \
     -p '{"value":"true"}' --type=merge 2>/dev/null || true
@@ -42,12 +45,15 @@ else
     fi
     kubectl delete -f "$LOCAL_MANIFEST" --ignore-not-found
 fi
+
 echo "  4. Wiping physical disk storage on all nodes..."
 for node in k8s-master k8s-worker1 k8s-worker2; do
     echo "     🧹 Scrubbing /var/lib/longhorn on $node..."
     multipass exec "$node" -- sudo rm -rf /var/lib/longhorn/
 done
+
 echo "  5. Final namespace wipe..."
 kubectl delete namespace longhorn-system --ignore-not-found=true --wait=true
 echo -e "${GREEN}✅ Cluster is clean — helmfile is clear to install${NC}"
+
 # Helmfile takes it from here.
