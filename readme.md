@@ -9,8 +9,7 @@ First, a few requirements:
 - Install Helm
 - Install Helmfile
 
-Run each of the following using ".(dot) $FILENAME", or, running the script as shown in bash prompt:
-
+Run the following:
 ```
 python run_pipeline.py
 ```
