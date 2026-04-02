@@ -5,7 +5,6 @@ First, a few requirements:
 
 - Install multipass
 - Install qemu / Hypervisor 
-- Install Gitbash: https://git-scm.com/install/
 - Install Python
 - Install Helm
 - Install Helmfile
