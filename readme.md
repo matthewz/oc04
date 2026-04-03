@@ -8,6 +8,7 @@ First, a few requirements:
 - Install Python
 - Install Helm
 - Install Helmfile
+- Install Gitbash: https://git-scm.com/install/
 
 Run the following:
 ```
