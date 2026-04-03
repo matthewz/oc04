@@ -10,3 +10,4 @@ util/k8s-helpers.sh
 **/*token*
 **/join-command.sh
 **/*out.txt
+**/*.img

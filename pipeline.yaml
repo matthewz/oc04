@@ -24,3 +24,7 @@ steps:
 #  - name: oclaw_source
 #    script: ./oclaw
 #    mode: source
+  - name: cleanup_and_forward
+    script: ./cleanup.sh
+    mode: foreground
+    wrap_with_dates: true
