@@ -3,7 +3,6 @@
 settings:
   verbose: true
   #sudo_keepalive: true
-  env_file: ./env.sh
 steps:
   - name: k8s_rebuild
     script: ./k8s-rebuild.sh 2>&1 | tee k8s-rebuild_out.txt

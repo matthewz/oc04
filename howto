@@ -50,4 +50,32 @@ kubectl get secret $(kubectl get serviceaccount kubernetes-dashboard-admin -n ku
 
 kubectl get events -n kubernetes-dashboard --field-selector type!=Normal --sort-by='.lastTimestamp'
 
+# What does kubelet actually say on the worker?
+multipass exec k8s-worker1 -- sudo journalctl -u kubelet --no-pager -n 50
+# What's actually in the CNI directories?
+multipass exec k8s-worker1 -- sudo ls -la /etc/cni/net.d/
+multipass exec k8s-worker1 -- sudo ls -la /opt/cni/bin/
+# What are the flannel pods doing?
+kubectl get pods -n kube-flannel -o wide
+kubectl logs -n kube-flannel -l app=flannel --prefix=true
+
+# The exact reason for NotReady
+kubectl describe node k8s-worker1 | grep -A 5 "KubeletNotReady\|NetworkPlugin\|message:"
+# Is kubelet still running or did it crash?
+multipass exec k8s-worker1 -- sudo systemctl status kubelet --no-pager
+# The last 20 lines of kubelet log RIGHT NOW
+multipass exec k8s-worker1 -- sudo journalctl -u kubelet --no-pager -n 20
+
+
+
+# Is containerd seeing the CNI config?
+multipass exec k8s-worker1 -- sudo journalctl -u containerd --no-pager -n 30
+# What does containerd think about CNI right now?
+multipass exec k8s-worker1 -- sudo cat /etc/cni/net.d/10-flannel.conflist
+# Try restarting containerd (not just kubelet) to force it to re-read CNI
+multipass exec k8s-worker1 -- sudo systemctl restart containerd
+sleep 5
+multipass exec k8s-worker1 -- sudo systemctl restart kubelet
+sleep 10
+kubectl get nodes
 
