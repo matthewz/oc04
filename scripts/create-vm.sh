@@ -9,16 +9,25 @@ CPUS=$4          # e.g., 2
 DISK=$5          # e.g., 20G
 IP_FILE_PATH=$6  # Path to save the IP (e.g., ./out/master-ip.txt)
 
+# Determine which image to use
 IMAGE_TO_USE="24.04"
-
 if [ -n "$K8S_GOLDEN_IMAGE" ]; then
     if [ -f "$K8S_GOLDEN_IMAGE" ]; then
-        echo "🌟 Found Golden Image: $K8S_GOLDEN_IMAGE"
-        # Multipass requires an absolute path for local images
-        IMAGE_TO_USE=$(realpath "$K8S_GOLDEN_IMAGE")
+        echo "🌟 Found Golden Image file: $K8S_GOLDEN_IMAGE"
+        
+        ABS_IMAGE_PATH="$(cd "$(dirname "$K8S_GOLDEN_IMAGE")" && pwd)/$(basename "$K8S_GOLDEN_IMAGE")"
+        
+        # We define a custom name for Multipass to recognize
+        CUSTOM_IMAGE_NAME="k8s-golden-local"
+        # Check if the image is already known to multipass, if not, map it
+        # Note: In newer Multipass versions, we simply use the path, 
+        # but the most reliable way is to use 'file://' prefix for local images
+        IMAGE_TO_USE="file://$ABS_IMAGE_PATH"
+        
+        echo "📍 Using Local URI: $IMAGE_TO_USE"
     else
-        echo "⚠️  K8S_GOLDEN_IMAGE was set but file not found at: $K8S_GOLDEN_IMAGE"
-        echo "   Falling back to default Ubuntu 24.04..."
+        echo "⚠️  K8S_GOLDEN_IMAGE file not found: $K8S_GOLDEN_IMAGE"
+        IMAGE_TO_USE="24.04"
     fi
 fi
 
@@ -130,11 +139,13 @@ fi
 # 3. LAUNCH BLOCK: Only runs if SKIP_LAUNCH is false
 if [ "$SKIP_LAUNCH" = false ]; then
     echo "🚀 Action: Launching $VM_NAME using $IMAGE_TO_USE..."
+    set -x
     multipass launch --name "$VM_NAME" \
                      --cpus "$CPUS" \
                      --memory "$MEMORY" \
                      --disk "$DISK" \
                      "$IMAGE_TO_USE"
+    set +x
 fi
 
 # 2. THE BRAKE: Wait for the VM to be fully responsive
