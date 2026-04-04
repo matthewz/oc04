@@ -79,3 +79,35 @@ multipass exec k8s-worker1 -- sudo systemctl restart kubelet
 sleep 10
 kubectl get nodes
 
+kubectl get pods -A | grep -v Running
+
+kubectl get events -A --sort-by='.lastTimestamp'
+
+kubectl get pods -n kube-system
+
+kubectl top nodes
+
+kubectl get events -A -w
+
+https://kubernetes.io/docs/reference/kubectl/quick-reference/
+
+kubectl get nodes -o jsonpath='{.items[*].status.addresses[?(@.type=="InternalIP")].address}'
+
+# Check pod status
+kubectl get pods -n oclaw01
+
+# Check logs
+kubectl logs -n openclaw deployment/oclaw01 -f
+
+# Check services
+kubectl get svc -n oclaw01
+
+# Debugging commands
+kubectl describe pod -n oclaw01
+kubectl logs -n openclaw deployment/oclaw01 --previous
+kubectl get events -n oclaw01 --sort-by=.metadata.creationTimestamp
+
+helm upgrade --install kubernetes-dashboard https://github.com/kubernetes/dashboard/releases/download/kubernetes-dashboard-7.10.1/kubernetes-dashboard-7.10.1.tgz \
+  --namespace kubernetes-dashboard \
+  --create-namespace \
+  --set api.containers.resources.limits.cpu=200m
