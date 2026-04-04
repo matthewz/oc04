@@ -1,0 +1,5 @@
+apiVersion: v2
+name: my-app-chart
+description: A chart for OpenClaw
+version: 0.1.0
+type: application

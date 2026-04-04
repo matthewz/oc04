@@ -5,7 +5,20 @@ repositories:
     url: https://kubernetes-sigs.github.io/metrics-server/
   - name: bedag
     url: https://bedag.github.io/helm-charts/
+---
+environments:
+  default:
+    values:
+      - instanceName: {{ env "INSTANCE" | default "openclaw-prod" | quote }}
+        localIp: {{ env "LOCAL_IP" | default "192.168.1.50" | quote }}
+---
 releases:
+  - name: {{ .Values.instanceName | quote }}
+    namespace: {{ .Values.instanceName | quote }}
+    chart: ./my-chart
+    createNamespace: true
+    values:
+      - yaml/openclaw.yaml.gotmpl
   - name: kubernetes-dashboard
     namespace: kubernetes-dashboard
     chart: https://github.com/kubernetes/dashboard/releases/download/kubernetes-dashboard-7.10.1/kubernetes-dashboard-7.10.1.tgz
@@ -19,7 +32,7 @@ releases:
     namespace: kubernetes-dashboard
     chart: bedag/raw
     values:
-      - dashboard-admin-rbac-values.yaml
+      - yaml/dashboard-admin-rbac-values.yaml
   - name: metrics-server
     namespace: kube-system
     chart: metrics-server/metrics-server
@@ -34,18 +47,18 @@ releases:
     chart: longhorn/longhorn
     version: "1.6.2"
     values:
-      - ./longhorn-values.yaml
+      - ./yaml/longhorn-values.yaml
     hooks:
       - events: ["presync"]
         showlogs: true
         command: "bash"
-        args: "./scripts/longhorn-rebuild.sh"
+        args: ["./scripts/longhorn-rebuild.sh"]
       - events: ["postsync"]
         showlogs: true
         command: "kubectl"
-        args: ["apply", "-f", "longhorn-jobs.yaml", "-n", "longhorn-system"]
+        args: ["apply", "-f", "./yaml/longhorn-jobs.yaml", "-n", "longhorn-system"]
 hooks:
   - events: ["postsync"]
     showlogs: true
     command: "bash"
-    args: "./scripts/fwd.sh"
+    args: ["./scripts/fwd.sh"]

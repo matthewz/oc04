@@ -1,0 +1,54 @@
+{
+  "models": {
+    "providers": {
+      "ollama": {
+        "baseUrl": "http://{{ .Values.localIp }}:11434/v1",
+        "apiKey": "ollama-local",
+        "api": "openai-responses",
+        "models": [
+          {
+            "id": "llama3.1:latest",
+            "name": "Llama 3.1",
+            "contextWindow": 32768
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "workspace": "/home/node/.openclaw/workspace",
+      "model": {
+        "primary": "ollama/llama3.1:latest"
+      }
+    }
+  },
+  "gateway": {
+    "mode": "local",
+    "bind": "lan",
+    "port": 18789,
+    "auth": {
+      "mode": "token",
+      "rateLimit": {
+        "maxAttempts": 30,
+        "windowMs": 60000,
+        "lockoutMs": 300000
+      }
+    },
+    "controlUi": {
+      "allowedOrigins": [
+        "http://localhost:18789", 
+        "http://{{ .Values.localIp }}:18789", 
+        "http://127.0.0.1:18789"
+      ]
+    }
+  },
+  "channels": {
+    "slack": {
+      "enabled": true,
+      "mode": "socket",
+      "botToken": "",
+      "appToken": ""
+    }
+  }
+}
