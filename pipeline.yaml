@@ -13,7 +13,7 @@ steps:
     wrap_with_dates: true
   - name: apps
     script: |
-      helmfile apply 2>&1 | tee helmfile_apply_out.txt
+      helmfile apply -f ./yaml/helmfile.yaml 2>&1 | tee helmfile_apply_out.txt
     mode: foreground
     log: apps_out.txt
     wrap_with_dates: true
