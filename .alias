@@ -1,0 +1,81 @@
+# .alias
+# ============================================================
+# Script Aliases - Source this file to use shorthand commands
+# Usage: source .alias  OR  . .alias
+# ============================================================
+# ── Resolve the project root dynamically ────────────────────
+# This is the key to robustness: aliases always resolve
+# relative to THIS file's location, not wherever you call
+# them from. Works whether sourced from root, CI, or subdir.
+# ────────────────────────────────────────────────────────────
+_PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_SCRIPTS_DIR="${_PROJECT_ROOT}/scripts"
+# ── Safety check: confirm scripts dir exists ────────────────
+if [[ ! -d "${_SCRIPTS_DIR}" ]]; then
+  echo "[alias] ERROR: scripts dir not found at: ${_SCRIPTS_DIR}" >&2
+  return 1   # 'return' not 'exit' — we're being sourced, not executed
+fi
+# ── Helper: verify a script exists and is executable ────────
+_require_script() {
+  local script="${_SCRIPTS_DIR}/$1"
+  if [[ ! -f "${script}" ]]; then
+    echo "[alias] ERROR: Script not found: ${script}" >&2
+    return 1
+  fi
+  if [[ ! -x "${script}" ]]; then
+    echo "[alias] ERROR: Script not executable: ${script}" >&2
+    echo "[alias] HINT:  Run: chmod +x ${script}" >&2
+    return 1
+  fi
+}
+# ── Aliases: executable scripts ─────────────────────────────
+# Using functions instead of aliases gives us:
+#   1. Argument passthrough ($@)
+#   2. Error checking before execution
+#   3. Easy drop-in replacement when you rewrite in Python
+# ────────────────────────────────────────────────────────────
+bake-k8s()               { _require_script bake-k8s.sh             && "${_SCRIPTS_DIR}/bake-k8s.sh"             "$@"; }
+check-health()           { _require_script check-health.sh         && "${_SCRIPTS_DIR}/check-health.sh"         "$@"; }
+cleanup()                { _require_script cleanup.sh              && "${_SCRIPTS_DIR}/cleanup.sh"              "$@"; }
+create-vm()              { _require_script create-vm.sh            && "${_SCRIPTS_DIR}/create-vm.sh"            "$@"; }
+diagnostics()            { _require_script diagnostics.sh          && "${_SCRIPTS_DIR}/diagnostics.sh"          "$@"; }
+fwd()                    { _require_script fwd.sh                  && "${_SCRIPTS_DIR}/fwd.sh"                  "$@"; }
+get-k8s-access-token()   { _require_script get-k8s-access-token.sh && "${_SCRIPTS_DIR}/get-k8s-access-token.sh" "$@"; }
+init-master()            { _require_script init-master.sh          && "${_SCRIPTS_DIR}/init-master.sh"          "$@"; }
+install-k8s-common()     { _require_script install-k8s-common.sh   && "${_SCRIPTS_DIR}/install-k8s-common.sh"   "$@"; }
+join-worker()            { _require_script join-worker.sh          && "${_SCRIPTS_DIR}/join-worker.sh"          "$@"; }
+k8s-rebuild()            { _require_script k8s-rebuild.sh          && "${_SCRIPTS_DIR}/k8s-rebuild.sh"          "$@"; }
+longhorn-rebuild()       { _require_script longhorn-rebuild.sh     && "${_SCRIPTS_DIR}/longhorn-rebuild.sh"     "$@"; }
+setup-kubeconfig()       { _require_script setup-kubeconfig.sh     && "${_SCRIPTS_DIR}/setup-kubeconfig.sh"     "$@"; }
+wait-for-cluster()       { _require_script wait_for_cluster.sh     && "${_SCRIPTS_DIR}/wait_for_cluster.sh"     "$@"; }
+# ── Sourced scripts (not directly executable) ────────────────
+# env.sh and helper.sh.tpl are sourced/templated, not run.
+# Wrapping them as functions makes the intent explicit.
+# ────────────────────────────────────────────────────────────
+load-env() {
+  local env_script="${_SCRIPTS_DIR}/env.sh"
+  if [[ ! -f "${env_script}" ]]; then
+    echo "[alias] ERROR: env.sh not found at: ${env_script}" >&2
+    return 1
+  fi
+  # shellcheck source=scripts/env.sh
+  source "${env_script}"
+  echo "[alias] env.sh loaded into current shell"
+}
+# ── Cleanup: don't pollute the shell environment ────────────
+unset -f _require_script   # remove helper after definitions are set
+# NOTE: We intentionally keep _PROJECT_ROOT and _SCRIPTS_DIR
+# available so scripts can reference them if needed.
+# If you want a truly clean env, uncomment:
+# unset _PROJECT_ROOT _SCRIPTS_DIR
+# ── Convenience: list all available commands ────────────────
+alias pipeline-help='echo "
+Available pipeline commands:
+  bake-k8s              fwd                  k8s-rebuild
+  check-health          get-k8s-access-token longhorn-rebuild
+  cleanup               init-master          setup-kubeconfig
+  create-vm             install-k8s-common   wait-for-cluster
+  diagnostics           join-worker
+  load-env              (sources env.sh into current shell)
+"'
+echo "[alias] Pipeline aliases loaded. Run 'pipeline-help' to list commands."

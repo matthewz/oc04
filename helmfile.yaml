@@ -15,10 +15,6 @@ releases:
           enabled: true
       - auth:
           enabled: true
-    hooks:
-      - events: ["postsync"]
-        showlogs: true
-        command: "./fwd.sh"
   - name: dashboard-admin-rbac
     namespace: kubernetes-dashboard
     chart: bedag/raw
@@ -42,8 +38,12 @@ releases:
     hooks:
       - events: ["presync"]
         showlogs: true
-        command: "./longhorn-rebuild.sh"
+        command: "longhorn-rebuild"
       - events: ["postsync"]
         showlogs: true
         command: "kubectl"
         args: ["apply", "-f", "longhorn-jobs.yaml", "-n", "longhorn-system"]
+hooks:
+  - events: ["postsync"]
+    showlogs: true
+    command: "fwd"

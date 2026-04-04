@@ -1,30 +1,27 @@
-###
-# pipeline.yaml
 settings:
   verbose: true
   #sudo_keepalive: true
+  shell_init: "source .alias" 
 steps:
   - name: k8s_rebuild
-    script: ./k8s-rebuild.sh 2>&1 | tee k8s-rebuild_out.txt
-    mode: foreground           
-    wrap_with_dates: true
-  - name: wait_for_cluster
-    script: ./wait_for_cluster.sh
+    script: k8s-rebuild 2>&1 | tee k8s-rebuild_out.txt   # clean now
     mode: foreground
     wrap_with_dates: true
-  - name: apps                  
+  - name: wait_for_cluster
+    script: wait-for-cluster
+    mode: foreground
+    wrap_with_dates: true
+  - name: apps
     script: |
-       helmfile apply 2>&1 | tee helmfile_apply_out.txt
-    mode: foreground   
+      helmfile apply 2>&1 | tee helmfile_apply_out.txt
+    mode: foreground
     log: apps_out.txt
     wrap_with_dates: true
   - name: demo_source
     script: ./demo
     mode: source
-#  - name: oclaw_source
-#    script: ./oclaw
-#    mode: source
-  - name: cleanup_and_forward
-    script: ./cleanup.sh
+### oclaw
+  - name: cleanup
+    script: cleanup
     mode: foreground
     wrap_with_dates: true
