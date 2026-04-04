@@ -38,7 +38,8 @@ releases:
     hooks:
       - events: ["presync"]
         showlogs: true
-        command: "longhorn-rebuild"
+        command: "bash"
+        args: "./scripts/longhorn-rebuild.sh"
       - events: ["postsync"]
         showlogs: true
         command: "kubectl"
@@ -46,4 +47,5 @@ releases:
 hooks:
   - events: ["postsync"]
     showlogs: true
-    command: "fwd"
+    command: "bash"
+    args: "./scripts/fwd.sh"
