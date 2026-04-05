@@ -1,0 +1,30 @@
+
+
+# A 
+
+multipass delete --all && multipass purge
+rm terraform/terraform.tfstate*
+# (Don't delete .terraform/ folder unless you want to re-run 'init')
+python run_pipeline.py clean_workspace infrastructure join_workers
+
+# B
+
+python run_pipeline.py infrastructure join_workers
+ 
+# C
+
+python run_pipeline.py infrastructure
+
+# D
+
+python run_pipeline.py infrastructure
+# 2. Kill the VMs behind Terraform's back
+multipass delete --all && multipass purge
+# 3. Run again - see if Terraform crashes or recreates
+python run_pipeline.py infrastructure
+
+#E
+
+multipass exec k8s-worker-1 -- sudo rm /usr/bin/kubeadm
+multipass exec k8s-worker-1 -- sudo rm /etc/apt/sources.list.d/kubernetes.list
+    
