@@ -27,3 +27,7 @@ output "kubeconfig_setup" {
 output "master_ip_address" {
   value = multipass_instance.master.ipv4
 }
+output "master_name" {
+  value = multipass_instance.master.name
+}
+   
