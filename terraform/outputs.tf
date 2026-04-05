@@ -21,3 +21,9 @@ output "worker_ips" {
 output "ssh_command" {
   value = "multipass shell ${multipass_instance.master.name}"
 }
+output "kubeconfig_setup" {
+  value = "KUBECONFIG=~/.kube/config-k8s-multipass kubectl get nodes"
+}
+output "master_ip_address" {
+  value = multipass_instance.master.ipv4
+}

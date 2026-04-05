@@ -73,6 +73,17 @@ resource "null_resource" "init_master" {
     command = "bash ../scripts/init-master.sh ${multipass_instance.master.name} ${multipass_instance.master.ipv4} ${var.pod_network_cidr} ${var.service_cidr} ${path.cwd}"
   }
 }
+resource "null_resource" "sync_kubeconfig" {
+  depends_on = [null_resource.init_master]
+  # This tells Terraform: "If the IP or the Name changes, run this again"
+  triggers = {
+    master_ip   = multipass_instance.master.ipv4
+    instance_id = multipass_instance.master.name
+  }
+  provisioner "local-exec" {
+    command = "bash ../scripts/setup-kubeconfig.sh ${multipass_instance.master.name} ${multipass_instance.master.ipv4}"
+  }
+}
 # This runs the "common" setup on Workers in parallel
 resource "null_resource" "setup_common_workers" {
   count    = var.worker_count

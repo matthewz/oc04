@@ -18,7 +18,7 @@ steps:
         terraform destroy -auto-approve
       fi
       terraform apply -auto-approve
-  - name: "k8s_worker_join"
+  - name: "join_workers"
     mode: "foreground"
     script: |
       MASTER_NAME="k8s-master"

@@ -2,34 +2,55 @@
 # Colors
 GREEN='\033[0;32m'
 RED='\033[0;31m'
+YELLOW='\033[1;33m'
 BOLD='\033[1m'
 NC='\033[0m' 
 echo -e "${BOLD}=== 🏥 FULL STACK HEALTH CHECK: $(date +%H:%M:%S) ===${NC}"
 # --- SECTION 1: VIRTUAL MACHINES (MULTIPASS) ---
 echo -e "\n${BOLD}🖥️  Multipass Infrastructure:${NC}"
 if command -v multipass &> /dev/null; then
-    # List VMs and their IP/State
     multipass list --format table | sed 's/^/  /'
-
-    read -a nodes <<< $(multipass list -v | cut -d " " -f 1 | xargs | cut -d " " -f 2-)
+    read -a nodes <<< $(multipass list | awk 'NR>1 {print $1}')
     for node in "${nodes[@]}"; do
        multipass exec "$node" -- bash -c \
-       " \
-         echo -n '   - ' ; hostname \
-       ; echo -n '     ' ;  df -h / | tail -1 | awk '{print \"Disk: \" \$5}' \
-       ; echo -n '     ' ; free -h | grep Mem | awk '{print \"Mem:  \" \$3 \"/\" \$2}' \
-       " \
-       2> /dev/null
+       "echo -n '   - ' ; hostname ; \
+        echo -n '     ' ; df -h / | tail -1 | awk '{print \"Disk: \" \$5}' ; \
+        echo -n '     ' ; free -h | grep Mem | awk '{print \"Mem:  \" \$3 \"/\" \$2}'" 2>/dev/null
     done
 else
     echo -e "  ${RED}❌ Multipass command not found.${NC}"
 fi
-# --- SECTION 2: K8S CONTROL PLANE ---
+# --- SECTION 2: K8S CONTROL PLANE (THE WAIT LOOP) ---
 echo -e "\n${BOLD}🧠 Kubernetes Control Plane:${NC}"
-if kubectl get --raw='/readyz' >/dev/null 2>&1; then
-    echo -e "  ${GREEN}✅ API Server is responding and ready${NC}"
-else
-    echo -e "  ${RED}❌ API Server is NOT ready!${NC}"
+MAX_RETRIES=15
+COUNT=0
+API_READY=false
+while [ $COUNT -lt $MAX_RETRIES ]; do
+    # Try to hit the API
+    if kubectl get --raw='/readyz' >/dev/null 2>&1; then
+        echo -e "  ${GREEN}✅ API Server is responding and ready${NC}"
+        API_READY=true
+        break
+    else
+        # Troubleshooting: Try a simple ping to see if the host even knows where the VM is
+        # We extract the IP from the kubeconfig
+        KUBE_IP=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')
+        
+        echo -e "  ${YELLOW}🕒 [$((COUNT+1))/$MAX_RETRIES] Waiting for API ($KUBE_IP)...${NC}"
+        
+        # Check if the route exists at all
+        if ! ping -c 1 -W 1 "$KUBE_IP" >/dev/null 2>&1; then
+            echo -e "     ⚠️  No network route to $KUBE_IP yet."
+        fi
+        
+        sleep 4
+        ((COUNT++))
+    fi
+done
+if [ "$API_READY" = false ]; then
+    echo -e "  ${RED}❌ API Server is NOT ready! Giving up after $MAX_RETRIES attempts.${NC}"
+    # If API is down, the rest of the script will fail, so we exit
+    exit 1
 fi
 # --- SECTION 3: K8S NODES ---
 echo -e "\n${BOLD}💻 K8s Node Status:${NC}"
