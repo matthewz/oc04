@@ -74,8 +74,6 @@ resource "null_resource" "init_master" {
   }
 }
 resource "null_resource" "sync_kubeconfig" {
-  # CHANGE THIS LINE:
-  # It must depend on the INIT script, not just the VM creation
   depends_on = [null_resource.init_master]
   triggers = {
     master_ip = multipass_instance.master.ipv4

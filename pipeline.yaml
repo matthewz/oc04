@@ -59,6 +59,7 @@ steps:
           set -x
           multipass exec $MASTER -- systemctl status kubelet | head -n 10
           set +x
+          exit 1
         fi
         echo "⏳ Attempt $RETRY_COUNT/$MAX_RETRIES..."
         sleep 5
