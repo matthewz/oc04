@@ -1,0 +1,3 @@
+{{- $rawContent := tpl (readFile "./openclaw.json.gotmpl") . -}}
+rawJsonConfig: |-
+{{ $rawContent | indent 2 }}
