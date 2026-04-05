@@ -47,10 +47,14 @@ else
 fi
 
 echo "  4. Wiping physical disk storage on all nodes..."
-for node in k8s-master k8s-worker1 k8s-worker2; do
+NODES=$(multipass list --format csv | tail -n +2 | cut -d',' -f1)
+echo "     Found nodes: $NODES"
+for node in $NODES; do
     echo "     🧹 Scrubbing /var/lib/longhorn on $node..."
-    multipass exec "$node" -- sudo rm -rf /var/lib/longhorn/
+    multipass exec "$node" -- sudo rm -rf /var/lib/longhorn/ &
 done
+wait
+echo "✅ Disk wipe complete"
 
 echo "  5. Final namespace wipe..."
 kubectl delete namespace longhorn-system --ignore-not-found=true --wait=true

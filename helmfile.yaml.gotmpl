@@ -59,8 +59,30 @@ releases:
         args: ["./scripts/longhorn-rebuild.sh"]
       - events: ["postsync"]
         showlogs: true
-        command: "kubectl"
-        args: ["apply", "-f", "./yaml/longhorn-jobs.yaml", "-n", "longhorn-system"]
+        command: "bash"
+        args:
+        - "-c"
+        - |
+          echo "Waiting for longhorn-system namespace..."
+          until kubectl get namespace longhorn-system &>/dev/null; do
+            echo "  namespace not ready yet, retrying..."
+            sleep 5
+          done
+          echo "Waiting for longhorn-manager deployment to exist..."
+          until kubectl get deployment longhorn-manager -n longhorn-system &>/dev/null; do
+            echo "  deployment not found yet, retrying..."
+            sleep 5
+          done
+          echo "Waiting for longhorn-manager to be ready..."
+          kubectl rollout status deployment/longhorn-manager \
+            -n longhorn-system \
+            --timeout=300s
+          echo "Waiting for RecurringJob CRD to be established..."
+          kubectl wait --for=condition=established \
+            crd/recurringjobs.longhorn.io \
+             --timeout=120s
+          echo "Applying longhorn jobs..."
+          kubectl apply -f ./yaml/longhorn-jobs.yaml
     installed: true
 hooks:
   - events: ["postsync"]

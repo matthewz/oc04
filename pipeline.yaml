@@ -121,7 +121,13 @@ steps:
     mode: "foreground"
   - name: "apps"
     mode: "foreground"
-    script: "helmfile apply -f ./yaml/helmfile.yaml"
+    needs:
+      - clean_workspace
+      - infrastructure
+      - wait_for_cluster
+      - check_workers
+      - join_workers
+    script: "helmfile apply"
   - name: "demo_source"
     script: "./demo"
     mode: "source"

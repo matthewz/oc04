@@ -115,6 +115,40 @@ RUNNERS = {
     "background": run_background,
     "source":     run_source,
 }
+# ── Step Resolver ─────────────────────────────────────────────────────────────
+def resolve_steps(requested_targets: list, all_steps: list) -> list:
+    """
+    Given a list of requested step names, expand them to include
+    any 'needs' dependencies — in the correct order, no duplicates.
+    
+    Think of it like a recipe: if you ask for 'cake', this function
+    knows you also need 'mix_batter' and 'preheat_oven' first.
+    """
+    # Build a lookup map: name -> step dict
+    step_map = {s["name"]: s for s in all_steps}
+    
+    resolved = []       # final ordered list
+    visited  = set()    # prevents duplicates / circular loops
+    def resolve(name: str):
+        if name in visited:
+            return
+        if name not in step_map:
+            print(f"ERROR: Step '{name}' not found in pipeline.", file=sys.stderr)
+            sys.exit(1)
+        
+        step = step_map[name]
+        
+        # Recurse into dependencies FIRST (depth-first)
+        for dep in step.get("needs", []):
+            resolve(dep)
+        
+        # Then add this step (only once)
+        if name not in visited:
+            visited.add(name)
+            resolved.append(step)
+    for target in requested_targets:
+        resolve(target)
+    return resolved
 def main():
     args = sys.argv[1:]
     
@@ -137,22 +171,16 @@ def main():
     if settings.get("sudo_keepalive", False):
         sudo_keepalive(verbose)
     all_steps = pipeline.get("steps", [])
+
     # 2. Filter steps based on targets
     if requested_targets:
-        # We filter the steps but keep them in the order they appear in the YAML
-        steps_to_run = [s for s in all_steps if s.get("name") in requested_targets]
+        steps_to_run = resolve_steps(requested_targets, all_steps)
         
-        # Validation: Check if any requested target doesn't exist in the YAML
-        found_names = [s.get("name") for s in steps_to_run]
-        for t in requested_targets:
-            if t not in found_names:
-                print(f"ERROR: No step named '{t}' found in {yaml_file}", file=sys.stderr)
-                sys.exit(1)
-        
-        print(f"Running tasks: {', '.join(requested_targets)}\n")
+        print(f"Running tasks: {', '.join(s['name'] for s in steps_to_run)}\n")
     else:
         steps_to_run = all_steps
         print(f"Found {len(steps_to_run)} step(s). Starting pipeline...\n")
+
     # 3. Execution Loop
     for step in steps_to_run:
         name   = step.get("name", "unnamed")
