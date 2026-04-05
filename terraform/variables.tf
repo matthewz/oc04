@@ -11,3 +11,6 @@ variable "worker_memory" { default = "2G" }
 variable "disk_size" { default = "20G" }
 variable "k8s_version" { default = "1.30.0" }
 variable "pod_network_cidr" { default = "10.244.0.0/16" }
+variable "service_cidr" {
+  default = "10.96.0.0/12"
+}

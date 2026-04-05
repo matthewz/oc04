@@ -1,6 +1,6 @@
 settings:
   verbose: true
-  shell_init: "source .alias" 
+  shell_init: "source ./.alias" 
 steps:
   - name: "clean_workspace"
     mode: "foreground"

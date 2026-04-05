@@ -6,6 +6,7 @@ MASTER_IP=$2
 POD_CIDR=$3
 SVC_CIDR=$4
 PROJECT_ROOT=$5
+echo "DEBUG: Project Root is currently: $PROJECT_ROOT"
 echo "=================================================="
 echo "      Initializing Kubernetes Master Node         "
 echo "=================================================="
@@ -180,16 +181,17 @@ echo "📋 Final cluster state:"
 multipass exec $MASTER_NAME -- kubectl get nodes -o wide
 echo ""
 multipass exec $MASTER_NAME -- kubectl get pods -A
-###
 # ==================================================
 # 6. CAPTURE JOIN COMMAND (The Clean Way)
 # ==================================================
 echo "🔑 Generating join command for workers..."
-# Ensure the output directory exists on the Mac
+# 1. Ensure the directory exists on your Mac/Host
 mkdir -p "$PROJECT_ROOT/out"
-multipass exec $MASTER_NAME -- bash -c "sudo kubeadm token create --print-join-command > /home/ubuntu/join-command.sh"
-multipass transfer $MASTER_NAME:/home/ubuntu/join-command.sh $PROJECT_ROOT/out/join-command.sh
-# Make it executable just in case
+# 2. Run the command in the VM, but stream the output 
+#    directly into a file on your Mac.
+#    Note: We use 'sudo' inside the exec to ensure kubeadm has permissions.
+multipass exec $MASTER_NAME -- sudo kubeadm token create --print-join-command > "$PROJECT_ROOT/out/join-command.sh"
+# 3. Make it executable on your Mac
 chmod +x "$PROJECT_ROOT/out/join-command.sh"
 echo "✅ Join command saved to $PROJECT_ROOT/out/join-command.sh"
 echo "=================================================="
