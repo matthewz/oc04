@@ -15,7 +15,7 @@ environments:
 releases:
   - name: {{ .Values.instanceName | quote }}
     namespace: {{ .Values.instanceName | quote }}
-    chart: ./my-chart
+    chart: ./openclaw
     createNamespace: true
     values:
       - yaml/openclaw.yaml.gotmpl
