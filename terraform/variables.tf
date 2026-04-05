@@ -1,6 +1,6 @@
 variable "k8s_golden_image" {
   type        = string
-  default     = "22.04" 
+  default     = "22.04"
   description = "Path to your local .img file. If empty, uses 22.04"
 }
 variable "master_cpus" { default = 2 }

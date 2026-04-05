@@ -80,10 +80,29 @@ multipass exec $MASTER_NAME -- bash -c 'sudo rm -rf /home/ubuntu/.kube' || true
 # 2. DISABLE SWAP (The #1 reason kubeadm fails)
 echo "🚫 Ensuring Swap is disabled..."
 multipass exec $MASTER_NAME -- sudo swapoff -a
+
 # 3. INITIALIZE CLUSTER
 # We use --ignore-preflight-errors to handle small resource inconsistencies
 # that happen in virtualized environments.
-echo "🚀 Running kubeadm init (this may take 1-2 minutes)..."
+echo "🚚 Phase 1: Pre-pulling Kubernetes images (Prevents 'Connection Reset' errors)..."
+# We wrap this in a 3-attempt retry loop to handle transient network issues
+MAX_RETRIES=3
+for i in $(seq 1 $MAX_RETRIES); do
+  echo "   Attempt $i/$MAX_RETRIES: Pulling images..."
+  if multipass exec $MASTER_NAME -- sudo kubeadm config images pull; then
+    echo "   ✅ All images downloaded successfully."
+    break
+  else
+    if [ $i -eq $MAX_RETRIES ]; then
+      echo "   ❌ Failed to pull images after $MAX_RETRIES attempts. Check your internet connection."
+      exit 1
+    fi
+    echo "   ⚠️  Pull failed (likely a network hiccup). Retrying in 10s..."
+    sleep 10
+  fi
+done
+echo "🚀 Phase 2: Running kubeadm init (Configuring the Control Plane)..." 
+# Note: We keep the ignore-preflight-errors just in case your VM is slightly under-provisioned
 multipass exec $MASTER_NAME -- sudo kubeadm init \
   --pod-network-cidr=$POD_CIDR \
   --service-cidr=$SVC_CIDR \
@@ -91,9 +110,11 @@ multipass exec $MASTER_NAME -- sudo kubeadm init \
   --ignore-preflight-errors=NumCPU,Mem
 # Check if kubeadm init actually worked
 if [ $? -ne 0 ]; then
-  echo "❌ Error: kubeadm init failed!"
+  echo "❌ Error: kubeadm init failed during configuration!"
   exit 1
 fi
+echo "✅ Master Control Plane is initialized."
+
 # 4. CONFIGURE KUBECTL FOR THE UBUNTU USER INSIDE THE VM
 # FIX: Use single-quoted heredoc to prevent local variable expansion.
 # Without quotes on EOF, $HOME and $(id -u) would be evaluated on your Mac.

@@ -30,4 +30,4 @@ output "master_ip_address" {
 output "master_name" {
   value = multipass_instance.master.name
 }
-   
+

@@ -11,26 +11,54 @@ steps:
   - name: "infrastructure"
     mode: "foreground"
     script: |
+      set -e
       cd terraform
       terraform init
+      # Function to truly wipe Multipass ghosts
+      wipe_multipass() 
+      {
+        echo "🧹 Nuking Multipass ghosts..."
+        set -x
+        multipass stop --all || true
+        multipass delete --all || true
+        multipass purge || true
+        # Also remove local terraform state to force a fresh start
+        rm -rf terraform.tfstate terraform.tfstate.backup .terraform.lock.hcl
+        terraform init
+        set +x
+      }
       if [ "$FORCE_REBUILD" == "true" ]; then
-        echo "🧨 Force Rebuild: Destroying old cluster..."
-        terraform destroy -auto-approve
+        wipe_multipass
       fi
-      terraform apply -auto-approve
-      terraform output -raw master_name > ../.mastername
+      echo "🚀 Attempting Terraform Apply..."
+      if ! terraform apply -auto-approve; then
+        echo "⚠️ Apply failed due to 'Already Exists' error. Executing Nuclear Wipe..."
+        wipe_multipass
+        echo "♻️ Retrying apply on a clean slate..."
+        terraform apply -auto-approve
+      fi
+      # Final safety check: If it still fails here, we need to see why
+      if [ $? -ne 0 ]; then
+        echo "❌ Critical Failure: Terraform cannot recover even after a wipe."
+        exit 1
+      fi
+      terraform output -raw master_name > ../.master_name
   - name: "wait_for_master"
     mode: "foreground"
     script: |
+      if [ ! -f .master_name ]; then echo "❌ .master_name not found"; exit 1; fi
       MASTER=$(cat .master_name)
       echo "🎻 Waiting for Master API ($MASTER)..."
-      MAX_RETRIES=24
+      MAX_RETRIES=20
       RETRY_COUNT=0
-      until multipass exec $MASTER -- kubectl get nodes >/dev/null 2>&1; do
+      until multipass exec $MASTER -- bash -c "sudo KUBECONFIG=/etc/kubernetes/admin.conf kubectl get nodes --request-timeout=5s" ; do
+        echo "🎻 checking for Master API ($MASTER)..."
         RETRY_COUNT=$((RETRY_COUNT + 1))
-        if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-          echo "❌ ERROR: Master failed to respond."
-          exit 1
+        if [ $RETRY_COUNT -gt $MAX_RETRIES ]; then
+          echo "❌ ERROR: Master failed to respond after $MAX_RETRIES retries: ... "
+          set -x
+          multipass exec $MASTER -- systemctl status kubelet | head -n 10
+          set +x
         fi
         echo "⏳ Attempt $RETRY_COUNT/$MAX_RETRIES..."
         sleep 5
@@ -41,66 +69,55 @@ steps:
       MASTER=$(cat .master_name)
       echo "🔍 Scanning workers..."
       > .nodes_to_join
-      
-      # Get all running workers from Multipass
-      WORKERS=$(multipass list --format csv | awk -F, 'NR>1 && $1 ~ /worker/ && $3 ~ /Running/ {print $1}')
-      
+      # DEFENSE: List all workers regardless of status (Deleted "Running" filter)
+      WORKERS=$(multipass list --format csv | awk -F, 'NR>1 && $1 ~ /worker/ {print $1}' | xargs)
+      echo "WORKERS=_${WORKERS}_"
       for NODE in $WORKERS; do
         echo "🧐 Checking $NODE..."
-        
-        # Check Master's view
-        STATUS=$(multipass exec $MASTER -- kubectl get node $NODE -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "NotFound")
-        
-        # Check Worker's internal heart (Kubelet)
-        KUBELET_ACTIVE=$(multipass exec $NODE -- systemctl is-active kubelet | grep "^active" || true)
-        if [ "$STATUS" == "True" ] && [ -n "$KUBELET_ACTIVE" ]; then
-          echo "✅ $NODE is healthy."
+        # Ensure the node is actually powered on
+        VM_STATUS=$(multipass info $NODE --format csv | awk -F, 'NR>1 {print $2}')
+        echo "VM_STATUS=_${VM_STATUS}_"
+        if [ "$VM_STATUS" != "Running" ]; then
+          echo "⁉️ $NODE is $VM_STATUS. Attempting to start..."
+          multipass start $NODE || true
+        fi
+        echo "🧐 Checking if $NODE is registered in K8s..."
+        NODE_CHECK=$(multipass exec k8s-master -- kubectl get node "$NODE" 2>&1)
+        echo "NODE_CHECK=_${NODE_CHECK}_"
+        if [[ $NODE_CHECK == *"not found"* ]]; then
+            echo "❌ $NODE is not yet registered in the cluster. (VM is up, but K8s isn't ready)."
+            echo "$NODE" >> .nodes_to_join
+        elif [[ $NODE_CHECK == *"$NODE"* ]]; then
+            READY_STATUS=$(multipass exec k8s-master -- kubectl get node "$NODE" -o "jsonpath={.status.conditions[?(@.type=='Ready')].status}")
+            echo "READY_STATUS=_${READY_STATUS}_"
+            if [ "$READY_STATUS" == "True" ]; then
+                echo "✅ $NODE is Ready!"
+            else
+                echo "⏳ $NODE exists but status is: $READY_STATUS"
+                echo "$NODE" >> .nodes_to_join
+            fi
         else
-          echo "⚠️ $NODE is broken or missing. Adding to check-list."
-          echo "$NODE" >> .nodes_to_join
+            echo "❓ Unknown state for $NODE: $NODE_CHECK"
+            echo "$NODE" >> .nodes_to_join
         fi
       done
   - name: "join_workers"
     script: |
       MASTER=$(cat .master_name)
       if [ ! -s .nodes_to_join ]; then
-        echo "🎉 No broken nodes found. Nothing to do."
+        echo "🎉 All workers are healthy. No action needed."
         exit 0
       fi
-      # Get a fresh join command once
-      JOIN_CMD=$(multipass exec $MASTER -- sudo kubeadm token create --print-join-command 2>/dev/null | grep "kubeadm join")
-      if [ -z "$JOIN_CMD" ]; then
-        echo "❌ Could not generate join command. Aborting."
-        exit 1
-      fi
-      for NODE in $(cat .nodes_to_join; do
-        echo "🛠️  Repairing $NODE..."
-        # 1. Cleanup Master's memory of the node
-        multipass exec $MASTER -- sudo kubectl delete node $NODE --force --grace-period=0 2>/dev/null || true
-        # 2. Hard Reset the Node
-        multipass exec $NODE -- sudo systemctl stop kubelet containerd || true
-        multipass exec $NODE -- sudo kubeadm reset -f
-        multipass exec $NODE -- sudo rm -rf /etc/cni/net.d /var/lib/kubelet /etc/kubernetes /var/lib/etcd
-        multipass exec $NODE -- sudo iptables -F && multipass exec $NODE -- sudo iptables -t nat -F && multipass exec $NODE -- sudo iptables -X
-        # 3. Fresh Start
-        multipass exec $NODE -- sudo systemctl start containerd
-        echo "🚀 Joining $NODE to cluster..."
-        multipass exec $NODE -- sudo $JOIN_CMD
+      # Loop through the list we just made and call the script
+      for NODE in $(cat .nodes_to_join); do
+        echo "🛠️  Starting repair script for $NODE..."
+        bash ./scripts/join-worker.sh "$NODE" "$MASTER"
       done
-      
-      rm .nodes_to_check
-      echo "✅ All repairs complete."
-#  - name: "join_workers"
-#    mode: "foreground"
-#    script: |
-#      MASTER_NAME="k8s-master"
-#      WORKERS=$(multipass list --format csv | awk -F, 'NR>1 && $1 ~ /worker/ {print $1}')
-#      for WORKER in $WORKERS; do
-#          echo "🔗 Joining $WORKER..."
-#          bash ./scripts/join-worker.sh "$WORKER" "$MASTER_NAME" "$(pwd)/terraform"
-#      done
+      echo "✅ All worker repairs finished."
+      rm .nodes_to_join
+      echo "✅ Worker processing complete."
   - name: "wait_for_cluster"
-    script: "bash ./scripts/wait-for-cluster.sh" # Point to the actual script file
+    script: "bash ./scripts/wait-for-cluster.sh"
     mode: "foreground"
   - name: "apps"
     mode: "foreground"
@@ -109,5 +126,5 @@ steps:
     script: "./demo"
     mode: "source"
   - name: "cleanup"
-    script: "cleanup" # Assumes 'cleanup' is an alias or in path
+    script: "cleanup"
     mode: "foreground"

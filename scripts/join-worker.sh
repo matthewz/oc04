@@ -18,7 +18,6 @@ fi
 set +x
 WORKER_NAME=$1
 MASTER_NAME=$2
-PROJECT_ROOT=$3
 echo "=================================================="
 echo "🔗 Preparing to join $WORKER_NAME to $MASTER_NAME..."
 echo "=================================================="
