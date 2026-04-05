@@ -90,11 +90,9 @@ echo "🚚 Phase 1: Pre-pulling Kubernetes images (Prevents 'Connection Reset' e
 # We wrap this in a 3-attempt retry loop to handle transient network issues
 
 echo "🚚 Phase 1a: Checking for cached Kubernetes images..."
-
-# 2. Check for images with a short timeout
 echo "   🔎 Checking for cached Kubernetes images..."
 # Check if the API server image is already present in containerd
-IMAGE_EXISTS=$(multipass exec $MASTER_NAME --timeout 30 -- sudo crictl images -q registry.k8s.io/kube-apiserver 2>/dev/null || echo "")
+IMAGE_EXISTS=$(multipass exec $MASTER_NAME -- sudo crictl images -q registry.k8s.io/kube-apiserver 2>/dev/null || echo "")
 echo "IMAGE_EXISTS=_${IMAGE_EXISTS}_"
 if [ -n "$IMAGE_EXISTS" ]; then
   echo "   ✅ Images already cached. Skipping download."
