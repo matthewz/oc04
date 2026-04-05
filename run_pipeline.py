@@ -44,14 +44,16 @@ def wrap_script(script: str, shell_init: str) -> str:
         return script
     return f"{shell_init}\n{script}"
 # ── Step Runners ──────────────────────────────────────────────────────────────
-def run_foreground(step: dict, verbose: bool, shell_init: str = ""):  # ← added shell_init
+def run_foreground(step: dict, verbose: bool, shell_init: str = ""):
     script = step["script"]
-    script = wrap_script(script, shell_init)                           # ← wrap it
-    log(f"[foreground] {step['script']}", verbose)                     # ← log original, not wrapped
+    work_dir = step.get("cwd", os.getcwd()) 
+    script = wrap_script(script, shell_init)
+    log(f"[foreground] {step['name']} in {work_dir}", verbose)
     result = subprocess.run(
         script,
         shell=True,
-        executable="/bin/bash"    # ← IMPORTANT: force bash, not /bin/sh
+        executable="/bin/bash",
+        cwd=work_dir
     )
     if result.returncode != 0:
         print(

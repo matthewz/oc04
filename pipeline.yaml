@@ -1,27 +1,41 @@
 settings:
   verbose: true
-  #sudo_keepalive: true
   shell_init: "source .alias" 
 steps:
-  - name: k8s_rebuild
-    script: k8s-rebuild 2>&1 | tee k8s-rebuild_out.txt   # clean now
-    mode: foreground
-    wrap_with_dates: true
-  - name: wait_for_cluster
-    script: wait-for-cluster
-    mode: foreground
-    wrap_with_dates: true
-  - name: apps
+  - name: "clean_workspace"
+    mode: "foreground"
     script: |
-      helmfile apply -f ./yaml/helmfile.yaml 2>&1 | tee helmfile_apply_out.txt
-    mode: foreground
-    log: apps_out.txt
-    wrap_with_dates: true
-  - name: demo_source
-    script: ./demo
-    mode: source
-### oclaw
-  - name: cleanup
-    script: cleanup
-    mode: foreground
-    wrap_with_dates: true
+      mkdir -p ./terraform/out
+      rm -rf ./terraform/out/*
+      echo "🧹 Workspace cleaned."
+  - name: "infrastructure"
+    mode: "foreground"
+    script: |
+      cd terraform
+      terraform init
+      if [ "$FORCE_REBUILD" == "true" ]; then
+        echo "🧨 Force Rebuild: Destroying old cluster..."
+        terraform destroy -auto-approve
+      fi
+      terraform apply -auto-approve
+  - name: "k8s_worker_join"
+    mode: "foreground"
+    script: |
+      MASTER_NAME="k8s-master"
+      WORKERS=$(multipass list --format csv | awk -F, 'NR>1 && $1 ~ /worker/ {print $1}')
+      for WORKER in $WORKERS; do
+          echo "🔗 Joining $WORKER..."
+          bash ./scripts/join-worker.sh "$WORKER" "$MASTER_NAME" "$(pwd)/terraform"
+      done
+  - name: "wait_for_cluster"
+    script: "bash ./scripts/wait-for-cluster.sh" # Point to the actual script file
+    mode: "foreground"
+  - name: "apps"
+    mode: "foreground"
+    script: "helmfile apply -f ./yaml/helmfile.yaml"
+  - name: "demo_source"
+    script: "./demo"
+    mode: "source"
+  - name: "cleanup"
+    script: "cleanup" # Assumes 'cleanup' is an alias or in path
+    mode: "foreground"

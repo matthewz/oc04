@@ -1,9 +1,0 @@
-variable "master_memory" { default = "4G" }
-variable "master_cpus" { default = 2 }
-variable "worker_memory" { default = "4G" }
-variable "worker_cpus" { default = 1 }
-variable "disk_size" { default = "20G" }
-variable "k8s_version" { default = "1.28.0-1.1" }
-variable "pod_network_cidr" { default = "10.244.0.0/16" }
-variable "service_cidr" { default = "10.96.0.0/12" }
-variable "force_rebuild" { default = false }

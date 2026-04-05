@@ -29,11 +29,13 @@ releases:
           enabled: true
       - auth:
           enabled: true
+    installed: true
   - name: dashboard-admin-rbac
     namespace: kubernetes-dashboard
     chart: bedag/raw
     values:
       - yaml/dashboard-admin-rbac-values.yaml
+    installed: true
   - name: metrics-server
     namespace: kube-system
     chart: metrics-server/metrics-server
@@ -42,6 +44,7 @@ releases:
           - --cert-dir=/tmp
           - --kubelet-insecure-tls
           - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+    installed: true
   - name: longhorn
     namespace: longhorn-system
     createNamespace: true
@@ -58,6 +61,7 @@ releases:
         showlogs: true
         command: "kubectl"
         args: ["apply", "-f", "./yaml/longhorn-jobs.yaml", "-n", "longhorn-system"]
+    installed: true
 hooks:
   - events: ["postsync"]
     showlogs: true
