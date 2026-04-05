@@ -2,5 +2,7 @@
 terraform/.terraform* 
 terraform/terraform.tfstate*
 terraform/out/*.txt
+terraform/out/join-command.sh
+terraform/out/helper.sh
 **/*token*
 **/*.img

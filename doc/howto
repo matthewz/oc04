@@ -111,3 +111,6 @@ helm upgrade --install kubernetes-dashboard https://github.com/kubernetes/dashbo
   --namespace kubernetes-dashboard \
   --create-namespace \
   --set api.containers.resources.limits.cpu=200m
+
+sudo launchctl unload /Library/LaunchDaemons/com.canonical.multipassd.plist
+sudo launchctl load /Library/LaunchDaemons/com.canonical.multipassd.plist

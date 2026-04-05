@@ -71,12 +71,14 @@ echo "⚠️  Health check failed (exit $HEALTH_EXIT_CODE) — proceeding with f
 # If a previous attempt failed, kubeadm will refuse to run.
 # We force a reset to clear out the "ghosts" of previous failures.
 echo "🧹 Cleaning up any previous Kubernetes state..."
-multipass exec $MASTER_NAME -- sudo kubeadm reset -f || true
+#multipass exec $MASTER_NAME -- sudo kubeadm reset -f || true
+multipass exec $MASTER_NAME -- sudo kubeadm reset -f --cleanup-tmp-dir || true
 multipass exec $MASTER_NAME -- sudo rm -rf /etc/cni/net.d || true
 multipass exec $MASTER_NAME -- sudo crictl pull registry.k8s.io/coredns/coredns:v1.10.1
 # FIX: Use explicit path instead of $HOME which expands on the LOCAL machine
 # and would delete your Mac's ~/.kube directory!
 multipass exec $MASTER_NAME -- bash -c 'sudo rm -rf /home/ubuntu/.kube' || true
+
 # 2. DISABLE SWAP (The #1 reason kubeadm fails)
 echo "🚫 Ensuring Swap is disabled..."
 multipass exec $MASTER_NAME -- sudo swapoff -a
@@ -86,21 +88,32 @@ multipass exec $MASTER_NAME -- sudo swapoff -a
 # that happen in virtualized environments.
 echo "🚚 Phase 1: Pre-pulling Kubernetes images (Prevents 'Connection Reset' errors)..."
 # We wrap this in a 3-attempt retry loop to handle transient network issues
-MAX_RETRIES=3
-for i in $(seq 1 $MAX_RETRIES); do
-  echo "   Attempt $i/$MAX_RETRIES: Pulling images..."
-  if multipass exec $MASTER_NAME -- sudo kubeadm config images pull; then
-    echo "   ✅ All images downloaded successfully."
-    break
-  else
-    if [ $i -eq $MAX_RETRIES ]; then
-      echo "   ❌ Failed to pull images after $MAX_RETRIES attempts. Check your internet connection."
-      exit 1
+
+echo "🚚 Phase 1a: Checking for cached Kubernetes images..."
+# Check if the API server image is already present in containerd
+IMAGE_EXISTS=$(multipass exec $MASTER_NAME -- sudo crictl images -q registry.k8s.io/kube-apiserver 2>/dev/null)
+echo "IMAGE_EXISTS=_${IMAGE_EXISTS}_"
+if [ -n "$IMAGE_EXISTS" ]; then
+  echo "   ✅ Images already cached. Skipping download."
+else
+  echo "   📥 Images missing. Starting download..."
+  MAX_RETRIES=3
+  for i in $(seq 1 $MAX_RETRIES); do
+     echo "   Attempt $i/$MAX_RETRIES: Pulling images..."
+     if multipass exec $MASTER_NAME -- sudo kubeadm config images pull; then
+       echo "   ✅ All images downloaded successfully."
+       break
+     else
+       if [ $i -eq $MAX_RETRIES ]; then
+         echo "   ❌ Failed to pull images after $MAX_RETRIES attempts. Check your internet connection."
+         exit 1
+       fi
+     echo "   ⚠️  Pull failed (likely a network hiccup). Retrying in 10s..."
+     sleep 10
     fi
-    echo "   ⚠️  Pull failed (likely a network hiccup). Retrying in 10s..."
-    sleep 10
-  fi
-done
+  done
+fi
+
 echo "🚀 Phase 2: Running kubeadm init (Configuring the Control Plane)..." 
 # Note: We keep the ignore-preflight-errors just in case your VM is slightly under-provisioned
 multipass exec $MASTER_NAME -- sudo kubeadm init \
@@ -124,9 +137,20 @@ multipass exec $MASTER_NAME -- bash -c '
   sudo cp -i /etc/kubernetes/admin.conf /home/ubuntu/.kube/config
   sudo chown $(id -u ubuntu):$(id -g ubuntu) /home/ubuntu/.kube/config
 '
+
 # 5. INSTALL POD NETWORK (Flannel)
 echo "🌐 Installing Flannel pod network..."
-multipass exec $MASTER_NAME -- kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+#multipass exec $MASTER_NAME -- kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+echo "🌐 Checking Flannel installation..."
+FLANNEL_EXISTS=$(multipass exec $MASTER_NAME -- kubectl get ds -n kube-flannel kube-flannel-ds --no-headers 2>/dev/null || true)
+echo "FLANNEL_EXISTS=_${FLANNEL_EXISTS}_"
+if [ -z "$FLANNEL_EXISTS" ]; then
+  echo "   Installing Flannel..."
+  multipass exec $MASTER_NAME -- kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+else
+  echo "   ✅ Flannel already installed."
+fi
+
 # 5a. WAIT FOR POD OBJECT TO EXIST
 echo "⏳ Waiting for Flannel pod object to be scheduled (up to 2 minutes)..."
 multipass exec $MASTER_NAME -- bash -c '
