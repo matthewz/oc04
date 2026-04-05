@@ -11,7 +11,7 @@ locals {
   master_name  = "k8s-master"
   worker1_name = "k8s-worker-1"
   worker2_name = "k8s-worker-2"
-  image_to_use = var.k8s_golden_image != "" ? "file://${abspath(var.k8s_golden_image)}" : "24.04"
+  image_to_use = (var.k8s_golden_image != "" && fileexists(var.k8s_golden_image)) ? "file://${abspath(var.k8s_golden_image)}" : "22.04"
 }
 resource "null_resource" "prepare_env" {
   provisioner "local-exec" {
@@ -74,11 +74,11 @@ resource "null_resource" "init_master" {
   }
 }
 resource "null_resource" "sync_kubeconfig" {
+  # CHANGE THIS LINE:
+  # It must depend on the INIT script, not just the VM creation
   depends_on = [null_resource.init_master]
-  # This tells Terraform: "If the IP or the Name changes, run this again"
   triggers = {
-    master_ip   = multipass_instance.master.ipv4
-    instance_id = multipass_instance.master.name
+    master_ip = multipass_instance.master.ipv4
   }
   provisioner "local-exec" {
     command = "bash ../scripts/setup-kubeconfig.sh ${multipass_instance.master.name} ${multipass_instance.master.ipv4}"

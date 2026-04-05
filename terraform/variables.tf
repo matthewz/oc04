@@ -1,7 +1,7 @@
 variable "k8s_golden_image" {
   type        = string
-  default     = "" 
-  description = "Path to your local .img file. If empty, uses Ubuntu 24.04"
+  default     = "22.04" 
+  description = "Path to your local .img file. If empty, uses 22.04"
 }
 variable "master_cpus" { default = 2 }
 variable "master_memory" { default = "4G" }
