@@ -115,44 +115,53 @@ RUNNERS = {
     "background": run_background,
     "source":     run_source,
 }
-# ── Main ──────────────────────────────────────────────────────────────────────
 def main():
     args = sys.argv[1:]
+    
+    # 1. Determine the YAML file and the list of requested targets
     if args and args[0].endswith(".yaml"):
         yaml_file = args[0]
-        target    = args[1] if len(args) > 1 else None
+        requested_targets = args[1:] # Everything after the YAML file
     else:
         yaml_file = "pipeline.yaml"
-        target    = args[0] if args else None
+        requested_targets = args     # Everything provided
     print(f"Loading pipeline from: {yaml_file}")
     with open(yaml_file) as f:
         pipeline = yaml.safe_load(f)
     settings   = pipeline.get("settings", {})
     verbose    = settings.get("verbose", True)
-    shell_init = settings.get("shell_init", "")    # ← read it once here
+    shell_init = settings.get("shell_init", "")
+    
     if shell_init:
         log(f"shell_init active: {shell_init}", verbose)
     if settings.get("sudo_keepalive", False):
         sudo_keepalive(verbose)
-    steps = pipeline.get("steps", [])
-    if target:
-        steps = [s for s in steps if s.get("name") == target]
-        if not steps:
-            print(f"ERROR: No step named '{target}' found in {yaml_file}",
-                  file=sys.stderr)
-            sys.exit(1)
-        print(f"Running single task: {target}\n")
+    all_steps = pipeline.get("steps", [])
+    # 2. Filter steps based on targets
+    if requested_targets:
+        # We filter the steps but keep them in the order they appear in the YAML
+        steps_to_run = [s for s in all_steps if s.get("name") in requested_targets]
+        
+        # Validation: Check if any requested target doesn't exist in the YAML
+        found_names = [s.get("name") for s in steps_to_run]
+        for t in requested_targets:
+            if t not in found_names:
+                print(f"ERROR: No step named '{t}' found in {yaml_file}", file=sys.stderr)
+                sys.exit(1)
+        
+        print(f"Running tasks: {', '.join(requested_targets)}\n")
     else:
-        print(f"Found {len(steps)} step(s). Starting pipeline...\n")
-    for step in steps:
+        steps_to_run = all_steps
+        print(f"Found {len(steps_to_run)} step(s). Starting pipeline...\n")
+    # 3. Execution Loop
+    for step in steps_to_run:
         name   = step.get("name", "unnamed")
         mode   = step.get("mode", "foreground")
         runner = RUNNERS.get(mode)
         if not runner:
-            print(f"ERROR: Unknown mode '{mode}' in step '{name}'",
-                  file=sys.stderr)
+            print(f"ERROR: Unknown mode '{mode}' in step '{name}'", file=sys.stderr)
             sys.exit(1)
-        runner(step, verbose, shell_init)    # ← pass shell_init to every runner
+        runner(step, verbose, shell_init)
     print("\nPipeline complete. Background jobs may still be running.")
     print("Check log files for their output.")
 if __name__ == "__main__":
