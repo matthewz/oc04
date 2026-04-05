@@ -30,7 +30,7 @@ resource "multipass_instance" "workers" {
 # 3. BRIDGE: Export IPs to files for your existing Bash scripts
 resource "local_file" "master_ip" {
   content  = multipass_instance.master.ipv4
-  filename = "${path.module}/out/master-ip.txt"
+  filename = "${path.module}/../out/master-ip.txt"
 }
 # 4. EXECUTION: Run your existing Bash scripts
 # This runs the "common" setup on the Master
