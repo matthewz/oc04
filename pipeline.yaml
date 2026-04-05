@@ -67,7 +67,6 @@ steps:
       echo "🚀 Master is online."
   - name: "check_workers"
     script: |
-      MASTER=$(cat .master_name)
       echo "🔍 Scanning workers..."
       > .nodes_to_join
       # DEFENSE: List all workers regardless of status (Deleted "Running" filter)
@@ -104,19 +103,19 @@ steps:
       done
   - name: "join_workers"
     script: |
-      MASTER=$(cat .master_name)
       if [ ! -s .nodes_to_join ]; then
         echo "🎉 All workers are healthy. No action needed."
         exit 0
       fi
-      # Loop through the list we just made and call the script
+      MASTER=$(cat .master_name)
+      echo "Nodes found:" 
+      cat .nodes_to_join
       for NODE in $(cat .nodes_to_join); do
-        echo "🛠️  Starting repair script for $NODE..."
+        echo "🛠️  Starting join script for $NODE..."
         bash ./scripts/join-worker.sh "$NODE" "$MASTER"
       done
-      echo "✅ All worker repairs finished."
+      echo "✅ All worker joins finished."
       rm .nodes_to_join
-      echo "✅ Worker processing complete."
   - name: "wait_for_cluster"
     script: "bash ./scripts/wait-for-cluster.sh"
     mode: "foreground"
