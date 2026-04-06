@@ -43,6 +43,8 @@ steps:
         exit 1
       fi
       terraform output -raw master_name > ../.master_name
+    needs:
+      - clean_workspace 
   - name: "wait_for_master"
     mode: "foreground"
     script: |
@@ -65,6 +67,8 @@ steps:
         sleep 5
       done
       echo "🚀 Master is online."
+    needs: 
+      - infrastructure 
   - name: "check_workers"
     script: |
       echo "🔍 Scanning workers..."
@@ -102,6 +106,8 @@ steps:
             echo "$NODE" >> .nodes_to_join
         fi
       done
+    needs:
+      - wait_for_master
   - name: "join_workers"
     script: |
       if [ ! -s .nodes_to_join ]; then
@@ -117,17 +123,17 @@ steps:
       done
       echo "✅ All worker joins finished."
       rm .nodes_to_join
+    needs:
+      - check_workers
   - name: "wait_for_cluster"
     script: "bash ./scripts/wait-for-cluster.sh"
     mode: "foreground"
+    needs:
+      - join_workers
   - name: "apps"
     mode: "foreground"
     needs:
-      - clean_workspace
-      - infrastructure
       - wait_for_cluster
-      - check_workers
-      - join_workers
     script: "helmfile apply"
   - name: "demo_source"
     script: "./demo"
