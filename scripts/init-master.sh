@@ -91,10 +91,16 @@ echo "🚚 Phase 1: Pre-pulling Kubernetes images (Prevents 'Connection Reset' e
 
 echo "🚚 Phase 1a: Checking for cached Kubernetes images..."
 echo "   🔎 Checking for cached Kubernetes images..."
-# Check if the API server image is already present in containerd
-#IMAGE_EXISTS=$(multipass exec $MASTER_NAME -- sudo crictl images -q registry.k8s.io/kube-apiserver 2> /dev/null             || echo "")
- IMAGE_EXISTS=$(multipass exec $MASTER_NAME -- sudo crictl images -q  registry.k8s.io/kube-apiserver < /dev/null 2>/dev/null || echo "")
-echo "IMAGE_EXISTS=_${IMAGE_EXISTS}_"
+set -x
+if multipass exec $MASTER_NAME -- \
+  sudo crictl images 2>/dev/null | grep -q "kube-apiserver"; then
+  echo "✅ kube-apiserver image cached"
+  export IMAGE_EXISTS="yes"
+else
+  echo "❌ Not cached, will need to pull"
+  export IMAGE_EXISTS=""
+fi
+set +x
 if [ -n "$IMAGE_EXISTS" ]; then
   echo "   ✅ Images already cached. Skipping download."
 else
@@ -118,16 +124,17 @@ fi
 
 echo "🚀 Phase 2: Running kubeadm init (Configuring the Control Plane)..." 
 # Note: We keep the ignore-preflight-errors just in case your VM is slightly under-provisioned
+set -x
 multipass exec $MASTER_NAME -- sudo kubeadm init \
   --pod-network-cidr=$POD_CIDR \
   --service-cidr=$SVC_CIDR \
   --apiserver-advertise-address=$MASTER_IP \
   --ignore-preflight-errors=NumCPU,Mem
-# Check if kubeadm init actually worked
 if [ $? -ne 0 ]; then
   echo "❌ Error: kubeadm init failed during configuration!"
   exit 1
 fi
+set +x
 echo "✅ Master Control Plane is initialized."
 
 # 4. CONFIGURE KUBECTL FOR THE UBUNTU USER INSIDE THE VM
@@ -141,6 +148,8 @@ multipass exec $MASTER_NAME -- bash -c '
 '
 
 # 5. INSTALL POD NETWORK (Flannel)
+multipass exec $MASTER_NAME -- kubectl apply -f \
+  https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
 echo "🌐 Installing Flannel pod network..."
 #multipass exec $MASTER_NAME -- kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
 echo "🌐 Checking Flannel installation..."
@@ -173,11 +182,13 @@ multipass exec $MASTER_NAME -- bash -c '
 '
 # 5b. WAIT FOR FLANNEL POD TO BE READY
 echo "⏳ Waiting for Flannel pod to be Ready (up to 5 minutes)..."
+set -x
 multipass exec $MASTER_NAME -- \
   kubectl wait --namespace kube-flannel \
     --for=condition=ready pod \
     --selector=app=flannel \
     --timeout=300s
+set +x
 # 5c. VERIFY CNI ARTIFACTS AND NUDGE KUBELET
 echo "🔍 Verifying CNI binary and config were written to host..."
 multipass exec $MASTER_NAME -- bash -c '

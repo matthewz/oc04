@@ -68,6 +68,7 @@ steps:
   - name: "check_workers"
     script: |
       echo "🔍 Scanning workers..."
+      MASTER=$(cat .master_name)
       > .nodes_to_join
       # DEFENSE: List all workers regardless of status (Deleted "Running" filter)
       WORKERS=$(multipass list --format csv | awk -F, 'NR>1 && $1 ~ /worker/ {print $1}' | xargs)
@@ -82,13 +83,13 @@ steps:
           multipass start $NODE || true
         fi
         echo "🧐 Checking if $NODE is registered in K8s..."
-        NODE_CHECK=$(multipass exec k8s-master -- kubectl get node "$NODE" 2>&1)
+        NODE_CHECK=$(multipass exec $MASTER -- kubectl get node "$NODE" 2>&1)
         echo "NODE_CHECK=_${NODE_CHECK}_"
         if [[ $NODE_CHECK == *"not found"* ]]; then
             echo "❌ $NODE is not yet registered in the cluster. (VM is up, but K8s isn't ready)."
             echo "$NODE" >> .nodes_to_join
         elif [[ $NODE_CHECK == *"$NODE"* ]]; then
-            READY_STATUS=$(multipass exec k8s-master -- kubectl get node "$NODE" -o "jsonpath={.status.conditions[?(@.type=='Ready')].status}")
+            READY_STATUS=$(multipass exec $MASTER -- kubectl get node "$NODE" -o "jsonpath={.status.conditions[?(@.type=='Ready')].status}")
             echo "READY_STATUS=_${READY_STATUS}_"
             if [ "$READY_STATUS" == "True" ]; then
                 echo "✅ $NODE is Ready!"
