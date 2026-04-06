@@ -57,11 +57,21 @@ echo -e "\n${BOLD}💻 K8s Node Status:${NC}"
 kubectl get nodes -o custom-columns='NAME:.metadata.name,STATUS:.status.conditions[?(@.type=="Ready")].status' | sed 's/True/Ready/g' | sed 's/False/NotReady/g' | sed 's/^/  /'
 # --- SECTION 4: K8S PODS ---
 echo -e "\n${BOLD}🚨 Problem Pods (All Namespaces):${NC}"
-PROBLEMS=$(kubectl get pods -A --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers 2>/dev/null)
+PROBLEMS=$(kubectl get pods -A --no-headers 2>/dev/null | awk '
+{
+    # Split the READY column (e.g. "2/3") into ready and total
+    split($3, ready, "/")
+    
+    not_ready   = (ready[1] != ready[2])
+    bad_status  = ($4 ~ /CrashLoopBackOff|Error|OOMKilled|ImagePullBackOff|ErrImagePull|Terminating|Pending|Unknown/)
+    high_restart = ($5+0 > 3)
+    
+    if (not_ready || bad_status || high_restart) print
+}')
 if [ -z "$PROBLEMS" ]; then
     echo -e "  ${GREEN}✅ No unhealthy pods were found.${NC}"
 else
-    echo -e "${RED}$PROBLEMS${NC}"
+    echo -e "  ${RED}${PROBLEMS}${NC}"
 fi
 # --- SECTION 5: METRICS ---
 echo -e "\n${BOLD}📊 K8s Resource Usage:${NC}"
