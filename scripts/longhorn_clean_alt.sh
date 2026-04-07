@@ -13,7 +13,7 @@ else
     exit 1
 fi
 # Configuration
-LONGHORN_VERSION="1.6.2"
+LONGHORN_VERSION="1.10.2"
 NAMESPACE="longhorn-system"
 MASTER_VM="k8s-master"
 # UI Colors
