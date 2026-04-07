@@ -5,8 +5,7 @@
 # =============================================================================
 set -euo pipefail
 # Source your library
-#LIB_PATH="$(dirname "$0")/../lib/multipass.sh"
-LIB_PATH="$(dirname "$0")/scripts/lib/multipass.sh"
+LIB_PATH="$(dirname "$0")/lib/multipass.sh"
 if [[ -f "$LIB_PATH" ]]; then
     source "$LIB_PATH"
 else
@@ -14,7 +13,7 @@ else
     exit 1
 fi
 # Configuration
-LONGHORN_VERSION="1.10.2
+LONGHORN_VERSION="1.10.2"
 NAMESPACE="longhorn-system"
 MASTER_VM="k8s-master"
 # UI Colors
@@ -79,8 +78,8 @@ phase_uninstall_logic() {
     log_info "Phase 3: Triggering Uninstaller..."
     
     # 1. Set the deinstalling flag
-    kube_exec "$MASTER_VM" patch settings.longhorn.io deinstalling-indicator \
-        -n "$NAMESPACE" -p '{"value":"true"}' --type=merge 2>/dev/null || log_warn "Setting deinstalling flag failed (may already be gone)."
+    kube_exec "$MASTER_VM" "patch settings.longhorn.io deinstalling-indicator -n '$NAMESPACE' -p '{\"value\":\"true\"}' --type=merge 2>/dev/null" \
+       || log_warn "Setting deinstalling flag failed \(may already be gone\)."
     # 2. Try Helm first
     if helm status longhorn -n "$NAMESPACE" &>/dev/null; then
         log_info "Helm release found. Uninstalling..."
