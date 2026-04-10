@@ -1,3 +1,20 @@
 {{- $rawContent := tpl (readFile "./openclaw.json.gotmpl") . -}}
 rawJsonConfig: |-
 {{ $rawContent | indent 2 }}
+instanceName: {{ env "INSTANCE" | default "oclaw01" }}
+localIp: {{ env "LOCAL_IP" | default "192.168.50.188" }}
+gatewayToken: {{ env "GATEWAY_TOKEN" | default "" }}
+slack:
+  botToken: {{ env "SLACK_BOT_TOKEN" | default "" }}
+  appToken: {{ env "SLACK_APP_TOKEN" | default "" }}
+gateway:
+  port: {{ env "GATEWAY_PORT" | default "18789" }}
+image:
+  repository: ghcr.io/openclaw/openclaw
+  tag: latest
+storage:
+  size: 5Gi
+  storageClassName: longhorn-static
+ollama:
+  model: "llama3.1:latest"
+  contextWindow: 32768

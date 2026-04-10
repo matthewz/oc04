@@ -1,8 +1,8 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: ${INSTANCE}-config
-  namespace: ${INSTANCE}
+  name: {{ .Values.instanceName }}-config
+  namespace: {{ .Values.instanceName }}
 data:
   openclaw.json: |
 {{ .Values.rawJsonConfig | indent 4 }}

@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.instanceName }}
+  namespace: {{ .Values.instanceName }}
+  labels:
+    app: {{ .Values.instanceName }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.instanceName }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.instanceName }}
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroupChangePolicy: "Always"
+      initContainers:
+      - name: init-config
+        image: busybox
+        securityContext:
+          runAsUser: 0
+        command: ['sh', '-c']
+        args:
+        - |
+          mkdir -p /home/node/.openclaw/credentials
+          mkdir -p /home/node/.openclaw/agents/main/sessions
+          cp /tmp/config/openclaw.json /home/node/.openclaw/openclaw.json
+          chmod 700 /home/node/.openclaw
+          chmod 700 /home/node/.openclaw/credentials
+          chmod 600 /home/node/.openclaw/openclaw.json
+          if [ -f /home/node/.openclaw/agents/main/sessions/sessions.json ]; then
+            chmod 600 /home/node/.openclaw/agents/main/sessions/sessions.json
+          fi
+          chown -R 1000:1000 /home/node/.openclaw
+        volumeMounts:
+        - name: config-template
+          mountPath: /tmp/config
+        - name: workspace
+          mountPath: /home/node/.openclaw
+      containers:
+      - name: {{ .Values.instanceName }}
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        ports:
+        - containerPort: {{ .Values.gateway.port }}
+          name: gateway
+        env:
+        - name: OLLAMA_API_KEY
+          value: "ollama-local"
+        - name: OLLAMA_BASE_URL
+          value: "http://{{ .Values.localIp }}:11434"
+        - name: NODE_ENV
+          value: "production"
+        - name: SLACK_BOT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.instanceName }}-secrets
+              key: slack-bot-token
+        - name: SLACK_APP_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.instanceName }}-secrets
+              key: slack-app-token
+        - name: GATEWAY_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.instanceName }}-secrets
+              key: gateway-token
+        - name: OPENCLAW_CONFIG_PATH
+          value: "/home/node/.openclaw/openclaw.json"
+        volumeMounts:
+        - name: workspace
+          mountPath: /home/node/.openclaw
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.gateway.port }}
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.gateway.port }}
+          initialDelaySeconds: 15
+          periodSeconds: 5
+      volumes:
+      - name: config-template
+        configMap:
+          name: {{ .Values.instanceName }}-config
+          defaultMode: 0600
+      - name: workspace
+        persistentVolumeClaim:
+          claimName: {{ .Values.instanceName }}-workspace

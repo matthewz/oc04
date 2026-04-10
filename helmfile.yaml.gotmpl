@@ -5,16 +5,14 @@ repositories:
     url: https://kubernetes-sigs.github.io/metrics-server/
   - name: bedag
     url: https://bedag.github.io/helm-charts/
----
 environments:
   default:
     values:
-      - instanceName: {{ env "INSTANCE" | default "oclaw01" | quote }}
-        localIp: {{ env "LOCAL_IP" | default "192.168.1.50" | quote }}
+      - localIp: {{ env "LOCAL_IP" | default "192.168.50.188" }}
 ---
 releases:
-  - name: {{ .Values.instanceName | quote }}
-    namespace: {{ .Values.instanceName | quote }}
+  - name: oclaw01
+    namespace: oclaw01
     chart: ./openclaw
     createNamespace: true
     values:
@@ -64,17 +62,16 @@ releases:
           - "apply"
           - "-f"
           - "./yaml/longhorn-jobs.yaml"
+      - events: ["cleanup"]
+        showlogs: true
+        command: "bash"
+        args: 
+          - "-c"
+          - |
+            (
+            set -x
+            kubectl get namespace longhorn-system
+            ) \
+            2>&1
+            set +x
     installed: true
-hooks:
-  - events: ["cleanup"]
-    showlogs: true
-    command: "bash"
-    args: 
-      - "-c"
-      - |
-        (
-        set -x
-        kubectl get namespace longhorn-system
-        ) \
-        2>&1
-        set +x
