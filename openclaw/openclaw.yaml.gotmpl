@@ -3,7 +3,7 @@ rawJsonConfig: |-
 {{ $rawContent | indent 2 }}
 instanceName: {{ env "INSTANCE" | default "oclaw01" }}
 localIp: {{ env "LOCAL_IP" | default "192.168.50.188" }}
-gatewayToken: {{ env "GATEWAY_TOKEN" | default "" }}
+gatewayToken: {{ env "GATEWAY_TOKEN" | default "Abc12345" }}
 slack:
   botToken: {{ env "SLACK_BOT_TOKEN" | default "" }}
   appToken: {{ env "SLACK_APP_TOKEN" | default "" }}

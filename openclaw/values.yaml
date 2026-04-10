@@ -1,2 +1,3 @@
-# Inside ./my-chart/values.yaml
+# Inside ./openclaw/values.yaml
 openclawConfig: ""
+gatewayToken: ""
