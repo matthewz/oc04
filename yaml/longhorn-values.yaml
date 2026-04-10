@@ -2,9 +2,8 @@ defaultSettings:
   replicaSoftAntiAffinity: true
   storageOverProvisioningPercentage: 500
   storageMinimalAvailablePercentage: 10
-  defaultReplicaCount: 1
-  #backupTarget: "nfs://192.168.50.188:/Volumes/PRO-G40/longhorn-backups"
+  defaultReplicaCount: 2
   backupTarget: "cifs://192.168.50.188/longhorn-backups"
-  backup-target-credential-secret: longhorn-cifs-secret
+  backupTargetCredentialSecret: "cifs-secret"
 persistence:
-  defaultClassReplicaCount: 1
+  defaultClassReplicaCount: 2

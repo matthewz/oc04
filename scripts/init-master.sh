@@ -91,16 +91,21 @@ echo "🚚 Phase 1: Pre-pulling Kubernetes images (Prevents 'Connection Reset' e
 
 echo "🚚 Phase 1a: Checking for cached Kubernetes images..."
 echo "   🔎 Checking for cached Kubernetes images..."
-set -x
-if multipass exec $MASTER_NAME -- \
-  sudo crictl images 2>/dev/null | grep -q "kube-apiserver"; then
-  echo "✅ kube-apiserver image cached"
-  export IMAGE_EXISTS="yes"
-else
-  echo "❌ Not cached, will need to pull"
+#set -x
+#if multipass exec $MASTER_NAME -- \
+#  sudo crictl images 2>/dev/null | grep -q "kube-apiserver"; then
+#  echo "✅ kube-apiserver image cached"
+#  export IMAGE_EXISTS="yes"
+#else
+#  echo "❌ Not cached, will need to pull"
+#  export IMAGE_EXISTS=""
+#fi
+#set +x
+
+###
   export IMAGE_EXISTS=""
-fi
-set +x
+###
+
 if [ -n "$IMAGE_EXISTS" ]; then
   echo "   ✅ Images already cached. Skipping download."
 else

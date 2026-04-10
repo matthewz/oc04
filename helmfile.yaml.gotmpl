@@ -53,6 +53,10 @@ releases:
     values:
       - ./yaml/longhorn-values.yaml
     hooks:
+      - events: ["presync"]
+        showlogs: true
+        command: "bash"
+        args: ["./cifs_secret.sh"]
       - events: ["postsync"]       
         showlogs: true
         command: "kubectl"
