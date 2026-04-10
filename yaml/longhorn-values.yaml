@@ -1,9 +1,10 @@
-# longhorn-values.yaml
 defaultSettings:
   replicaSoftAntiAffinity: true
   storageOverProvisioningPercentage: 500
   storageMinimalAvailablePercentage: 10
   defaultReplicaCount: 1
-  backupTarget: "nfs://192.168.50.13/nfs/longhorn-backups"
+  #backupTarget: "nfs://192.168.50.188:/Volumes/PRO-G40/longhorn-backups"
+  backupTarget: "cifs://192.168.50.188/longhorn-backups"
+  backup-target-credential-secret: longhorn-cifs-secret
 persistence:
   defaultClassReplicaCount: 1

@@ -11,35 +11,12 @@ steps:
   - name: "infrastructure"
     mode: "foreground"
     script: |
-      set -e
+      set -x
       cd terraform
       terraform init
-      # Function to truly wipe Multipass ghosts
-      wipe_multipass() 
-      {
-        echo "🧹 Nuking Multipass ghosts..."
-        set -x
-        multipass stop --all || true
-        multipass delete --all || true
-        multipass purge || true
-        # Also remove local terraform state to force a fresh start
-        rm -rf terraform.tfstate terraform.tfstate.backup .terraform.lock.hcl
-        terraform init
-        set +x
-      }
-      if [ "$FORCE_REBUILD" == "true" ]; then
-        wipe_multipass
-      fi
-      echo "🚀 Attempting Terraform Apply..."
-      if ! terraform apply -auto-approve; then
-        echo "⚠️ Apply failed due to 'Already Exists' error. Executing Nuclear Wipe..."
-        wipe_multipass
-        echo "♻️ Retrying apply on a clean slate..."
-        terraform apply -auto-approve
-      fi
-      # Final safety check: If it still fails here, we need to see why
+      terraform apply -auto-approve 
       if [ $? -ne 0 ]; then
-        echo "❌ Critical Failure: Terraform cannot recover even after a wipe."
+        echo "❌ Critical Failure: Terraform failed the apply...exiting..."
         exit 1
       fi
       terraform output -raw master_name > ../.master_name

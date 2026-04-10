@@ -44,7 +44,7 @@ multipass exec "$NODE_NAME" -- bash -c '
   set -e
   echo "📦 Installing prerequisites..."
   sudo apt-get update -y
-  sudo apt-get install -y apt-transport-https ca-certificates curl gpg
+  sudo apt-get install -y apt-transport-https ca-certificates curl gpg nfs-common
   # Load required kernel modules for Kubernetes networking
   # FIX: Original script had "k8s.conf" written as a module name inside
   # the file, which is not a real kernel module and causes modprobe errors.

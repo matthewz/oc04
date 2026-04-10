@@ -20,14 +20,14 @@ releases:
     values:
       - ./openclaw/openclaw.yaml.gotmpl
     installed: true
-  - name: kubernetes-dashboard
+  - name: dashboard
     namespace: kubernetes-dashboard
     chart: https://github.com/kubernetes/dashboard/releases/download/kubernetes-dashboard-7.10.1/kubernetes-dashboard-7.10.1.tgz
     createNamespace: true
     values:
       - kong:
           enabled: true
-      - auth:
+        auth:
           enabled: true
     installed: true
   - name: dashboard-admin-rbac
@@ -53,39 +53,24 @@ releases:
     values:
       - ./yaml/longhorn-values.yaml
     hooks:
-      - events: ["presync"]
+      - events: ["postsync"]       
         showlogs: true
-        command: "bash"
-        args: ["./scripts/longhorn_clean.sh"]
-      - events: ["postsync"]
-        showlogs: true
-        command: "bash"
+        command: "kubectl"
         args:
-        - "-c"
-        - |
-          echo "Waiting for longhorn-system namespace..."
-          until kubectl get namespace longhorn-system &>/dev/null; do
-            echo "  namespace not ready yet, retrying..."
-            sleep 5
-          done
-          echo "Waiting for longhorn-manager deployment to exist..."
-          until kubectl get deployment longhorn-manager -n longhorn-system &>/dev/null; do
-            echo "  deployment not found yet, retrying..."
-            sleep 5
-          done
-          echo "Waiting for longhorn-manager to be ready..."
-          kubectl rollout status deployment/longhorn-manager \
-            -n longhorn-system \
-            --timeout=300s
-          echo "Waiting for RecurringJob CRD to be established..."
-          kubectl wait --for=condition=established \
-            crd/recurringjobs.longhorn.io \
-             --timeout=120s
-          echo "Applying longhorn jobs..."
-          kubectl apply -f ./yaml/longhorn-jobs.yaml
+          - "apply"
+          - "-f"
+          - "./yaml/longhorn-jobs.yaml"
     installed: true
 hooks:
-  - events: ["postsync"]
+  - events: ["cleanup"]
     showlogs: true
     command: "bash"
-    args: ["./scripts/fwd.sh"]
+    args: 
+      - "-c"
+      - |
+        (
+        set -x
+        kubectl get namespace longhorn-system
+        ) \
+        2>&1
+        set +x

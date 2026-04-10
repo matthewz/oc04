@@ -73,6 +73,9 @@ if [ -z "$PROBLEMS" ]; then
 else
     echo -e "  ${RED}${PROBLEMS}${NC}"
 fi
+CMD="kubectl get pods -A --no-headers | grep longhorn"
+#echo "CMD=_${CMD}_"
+#eval $CMD
 # --- SECTION 5: METRICS ---
 echo -e "\n${BOLD}📊 K8s Resource Usage:${NC}"
 kubectl top nodes 2>/dev/null | sed 's/^/  /' || echo -e "  ${RED}⚠️  Metrics Server not responding${NC}"

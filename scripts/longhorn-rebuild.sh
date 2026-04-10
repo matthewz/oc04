@@ -3,7 +3,7 @@ set -euo pipefail
 export KUBECONFIG=~/.kube/config-k8s-multipass
 GREEN='\033[0;32m'
 NC='\033[0m'
-LONGHORN_VERSION="1.6.2"
+LONGHORN_VERSION="1.10.2"
 
 # ── Phase 1: Deep Clean ───────────────────────────────────────────────────────
 # This script's ONLY job now: make the cluster safe for helmfile to install into.

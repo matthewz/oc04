@@ -38,13 +38,34 @@ kube_strip_finalizers() {
     
     # Get the names of all resources of this type
     local items
-    items=$(kube_exec "$vm" get "$resource" -n "$NAMESPACE" -o name 2>/dev/null || true)
+    local CMD="multipass exec $MASTER_VM -- bash -c 'kubectl get $resource -n $NAMESPACE -o name'"
+    echo "CMD=_${CMD}_"
+    set +e
+    items=$(eval $CMD)
+    set -e
+    echo "items=_${items}_"
     
     for item in $items; do
         kube_exec "$vm" patch "$item" -n "$NAMESPACE" \
             --type json \
             -p='[{"op": "remove", "path": "/metadata/finalizers"}]' 2>/dev/null || true
     done
+}
+kube_strip_finalizers() {
+    local vm="$1"
+    local resource="$2"
+    
+    log_info "Stripping finalizers from all $resource in $NAMESPACE..."
+    # 1. Fetch names as a clean list
+    # 2. Use xargs to run the patch command in parallel (or sequence)
+    # 3. Use -r to avoid running if the list is empty
+    multipass exec "$vm" -- bash -c "
+        kubectl get $resource -n $NAMESPACE -o jsonpath='{.items[*].metadata.name}' | \
+        xargs -n 1 -r -I {} \
+        kubectl patch $resource/{} -n $NAMESPACE \
+            --type json \
+            -p='[{\"op\": \"remove\", \"path\": \"/metadata/finalizers\"}]'
+    "
 }
 # Check if a namespace exists
 namespace_exists() {
