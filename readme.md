@@ -14,7 +14,7 @@ Run the following:
 ```
 python run_pipeline.py
 ```
-See howto file for useful commands.
+See 'howto' file for useful commands.
 
 This will create a 3 node kubernetes cluster, set up the dashboard and metrics for it, and install a simple Voting App. consisting of a frontend, backend and a database for use in verifying the infrastructure. 
 
