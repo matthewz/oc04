@@ -14,3 +14,6 @@ variable "pod_network_cidr" { default = "10.244.0.0/16" }
 variable "service_cidr" {
   default = "10.96.0.0/12"
 }
+variable "vault_cpus"      { default = 1 }
+variable "vault_memory"    { default = "1G" }
+variable "vault_disk_size" { default = "20G" }

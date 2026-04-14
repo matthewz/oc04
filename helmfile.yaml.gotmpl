@@ -5,16 +5,32 @@ repositories:
     url: https://kubernetes-sigs.github.io/metrics-server/
   - name: bedag
     url: https://bedag.github.io/helm-charts/
+  - name: hashicorp
+    url: https://helm.releases.hashicorp.com/
 environments:
   default:
     values:
       - localIp: {{ env "LOCAL_IP" | default "192.168.50.188" }}
+      - vaultAddr: {{ env "VAULT_ADDR" | default "http://localhost:8200" }} 
 ---
 releases:
+  - name: vault-injector
+    namespace: vault
+    chart: hashicorp/vault
+    createNamespace: true
+    values:
+      - server:
+          enabled: false          # Vault runs on its own VM, not in k8s
+        injector:
+          enabled: true
+          externalVaultAddr: {{ .Values.vaultAddr }}
+    installed: true
   - name: oclaw01
     namespace: oclaw01
     chart: ./openclaw
     createNamespace: true
+    needs:
+      - vault/vault-injector
     values:
       - ./openclaw/openclaw.yaml.gotmpl
     installed: true

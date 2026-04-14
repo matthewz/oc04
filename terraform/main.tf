@@ -12,6 +12,7 @@ locals {
   worker1_name = "k8s-worker-1"
   worker2_name = "k8s-worker-2"
   image_to_use = (var.k8s_golden_image != "" && fileexists(var.k8s_golden_image)) ? "file://${abspath(var.k8s_golden_image)}" : "22.04"
+  vault_name   = "vault-server"
 }
 resource "null_resource" "prepare_env" {
   provisioner "local-exec" {
@@ -53,10 +54,24 @@ resource "multipass_instance" "workers" {
   memory = var.worker_memory
   disk   = var.disk_size
 }
+# NEW: Create the Vault VM
+# Intentionally lighter than k8s nodes — it just runs Vault
+resource "multipass_instance" "vault" {
+  name   = local.vault_name
+  image  = local.image_to_use   # same Ubuntu 22.04 for consistency
+  cpus   = var.vault_cpus
+  memory = var.vault_memory
+  disk   = var.vault_disk_size
+}
 # 3. BRIDGE: Export IPs to files for your existing Bash scripts
 resource "local_file" "master_ip" {
   content  = multipass_instance.master.ipv4
   filename = "${path.module}/out/master-ip.txt"
+}
+resource "local_file" "vault_ip" {
+  content  = multipass_instance.vault.ipv4
+  filename = "${path.module}/out/vault-ip.txt"
+  depends_on = [multipass_instance.vault]
 }
 # 4. EXECUTION: Run your existing Bash scripts
 # This runs the "common" setup on the Master
@@ -88,5 +103,16 @@ resource "null_resource" "setup_common_workers" {
   triggers = { instance_id = multipass_instance.workers[count.index].name }
   provisioner "local-exec" {
     command = "bash ../scripts/install-k8s-common.sh ${multipass_instance.workers[count.index].name} ${var.k8s_version}"
+  }
+}
+# NEW: Install and configure Vault on its VM
+resource "null_resource" "setup_vault" {
+  depends_on = [
+    multipass_instance.vault,
+    local_file.vault_ip
+  ]
+  triggers = { instance_id = multipass_instance.vault.name }
+  provisioner "local-exec" {
+    command = "bash ../scripts/install-vault.sh ${multipass_instance.vault.name} ${multipass_instance.vault.ipv4}"
   }
 }

@@ -30,4 +30,25 @@ output "master_ip_address" {
 output "master_name" {
   value = multipass_instance.master.name
 }
-
+output "vault_ip" {
+  value       = multipass_instance.vault.ipv4
+  description = "Vault server IP — use this for VAULT_ADDR in helmfile"
+}
+output "vault_addr" {
+  value       = "http://${multipass_instance.vault.ipv4}:8200"
+  description = "Full Vault address — export as VAULT_ADDR"
+}
+output "vault_name" {
+  value = multipass_instance.vault.name
+}
+output "vault_shell_command" {
+  value = "multipass shell ${multipass_instance.vault.name}"
+}
+output "next_steps" {
+  value = <<-EOT
+    Vault VM is up. Now:
+    1. export VAULT_ADDR=http://${multipass_instance.vault.ipv4}:8200
+    2. bash ../scripts/init-vault.sh
+    3. helmfile apply
+  EOT
+}

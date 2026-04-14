@@ -20,6 +20,8 @@ steps:
         exit 1
       fi
       terraform output -raw master_name > ../.master_name
+      terraform output -raw vault_ip   > ../.vault_ip
+      terraform output -raw vault_addr > ../.vault_addr
     needs:
       - clean_workspace 
   - name: "wait_for_master"
@@ -107,14 +109,86 @@ steps:
     mode: "foreground"
     needs:
       - join_workers
+  - name: "wait_for_vault"
+    mode: "foreground"
+    script: |
+      if [ ! -f .vault_addr ]; then
+        echo "❌ .vault_addr not found — did terraform apply succeed?"
+        exit 1
+      fi
+      VAULT_ADDR=$(cat .vault_addr)
+      echo "🔐 Waiting for Vault to come online at $VAULT_ADDR..."
+      MAX_RETRIES=30
+      RETRY_COUNT=0
+      # /v1/sys/health returns 200 (initialized) or 501 (not initialized)
+      # Both mean Vault is UP and reachable — we just want a response
+      until curl -sf --max-time 3 \
+        -o /dev/null \
+        -w "%{http_code}" \
+        "${VAULT_ADDR}/v1/sys/health" | grep -qE "^(200|429|472|473|501|503)$"; do
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+        if [ $RETRY_COUNT -gt $MAX_RETRIES ]; then
+          echo "❌ Vault did not come online after $MAX_RETRIES retries"
+          echo "   Check: multipass shell vault-server"
+          echo "   Then:  sudo systemctl status vault"
+          exit 1
+        fi
+        echo "⏳ Attempt $RETRY_COUNT/$MAX_RETRIES — Vault not ready yet..."
+        sleep 5
+      done
+      echo "🔐 Vault is online at $VAULT_ADDR"
+    needs:
+      - infrastructure   # ← same as wait_for_master, runs in parallel with k8s
+  - name: "init_vault"
+    mode: "foreground"
+    script: |
+      VAULT_ADDR=$(cat .vault_addr)
+      VAULT_IP=$(cat .vault_ip)
+      export VAULT_ADDR
+      # Check if already initialized — makes this step idempotent
+      INIT_STATUS=$(curl -sf "${VAULT_ADDR}/v1/sys/health" | python3 -c "
+      import sys, json
+      d = json.load(sys.stdin)
+      print('true' if d.get('initialized') else 'false')
+      " 2>/dev/null || echo "false")
+      if [ "$INIT_STATUS" = "true" ]; then
+        echo "✅ Vault already initialized — checking seal status..."
+        # 👇 REPLACE your old early-exit block with this
+        SEAL_STATUS=$(curl -sf "${VAULT_ADDR}/v1/sys/health" | python3 -c "
+        import sys, json
+        d = json.load(sys.stdin)
+        print('true' if d.get('sealed') else 'false')
+        " 2>/dev/null || echo "true")
+        if [ "$SEAL_STATUS" = "true" ]; then
+          echo "🔒 Vault is sealed (e.g. after a reboot) — unsealing..."
+          bash ./scripts/unseal-vault.sh "$VAULT_ADDR" ".vault_keys.json"
+        else
+          echo "🔓 Vault is initialized and unsealed. Nothing to do."
+        fi
+        exit 0
+      fi
+      # First-time path — vault has never been initialized
+      echo "🔑 Initializing Vault for the first time..."
+      bash ./scripts/init-vault.sh "$VAULT_ADDR"
+      echo "🔓 Unsealing Vault..."
+      bash ./scripts/unseal-vault.sh "$VAULT_ADDR" ".vault_keys.json"
+      echo "⚙️  Configuring Vault (auth, policies, engines)..."
+      bash ./scripts/configure-vault.sh "$VAULT_ADDR" ".vault_keys.json"
+      echo "🔐 Vault ready."
+    needs:
+      - wait_for_vault
   - name: "apps"
     mode: "foreground"
     needs:
       - wait_for_cluster
-    script: "helmfile apply"
-  - name: "demo_source"
-    script: "./demo"
-    mode: "source"
-  - name: "cleanup"
-    script: "cleanup"
-    mode: "foreground"
+      - init_vault
+    script: |
+      export VAULT_ADDR=$(cat .vault_addr)
+      export LOCAL_IP=$(cat .local_ip 2>/dev/null || echo "192.168.50.1") 
+      helmfile apply
+#  - name: "demo_source"
+#    script: "./demo"
+#    mode: "source"
+#  - name: "cleanup"
+#    script: "cleanup"
+#    mode: "foreground"
