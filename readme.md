@@ -13,7 +13,8 @@ Other Information
 =================
 
 - The 'pipeline.yaml' file will specify a 3 node kubernetes cluster, set up the dashboard and metrics for it, and install Open Claw in a single replica instance with very strict 'NetworkPolicy' resource.  
-- It also installs and configures longhorn for using very scaled down PVC(s) and schedule regular snapshots to a NAS for backups/archival. 
+- It also installs and configures longhorn for using very scaled down PVC(s) and schedule regular snapshots to a NAS for backups/archival.
+- Also included in the pipeline is a VM dedicate to running Hashicorp Vault for secrets management. 
 - See 'howto' file for random/hodgepodge of possibly useful commands.
 
 Some things yet to do
