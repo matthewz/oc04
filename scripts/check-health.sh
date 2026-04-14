@@ -63,7 +63,7 @@ PROBLEMS=$(kubectl get pods -A --no-headers 2>/dev/null | awk '
     split($3, ready, "/")
     
     not_ready   = (ready[1] != ready[2])
-    bad_status  = ($4 ~ /CrashLoopBackOff|Error|OOMKilled|ImagePullBackOff|ErrImagePull|Terminating|Pending|Unknown/)
+    bad_status  = ($4 ~ /Completed|CrashLoopBackOff|Error|OOMKilled|ImagePullBackOff|ErrImagePull|Terminating|Pending|Unknown/)
     high_restart = ($5+0 > 3)
     
     if (not_ready || bad_status || high_restart) print
@@ -74,8 +74,7 @@ else
     echo -e "  ${RED}${PROBLEMS}${NC}"
 fi
 CMD="kubectl get pods -A --no-headers | grep longhorn"
-#echo "CMD=_${CMD}_"
-#eval $CMD
+#echo "CMD=_${CMD}_" ; eval $CMD
 # --- SECTION 5: METRICS ---
 echo -e "\n${BOLD}📊 K8s Resource Usage:${NC}"
 kubectl top nodes 2>/dev/null | sed 's/^/  /' || echo -e "  ${RED}⚠️  Metrics Server not responding${NC}"
