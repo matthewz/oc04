@@ -1,3 +1,4 @@
+
 #!/bin/bash
 # Colors
 GREEN='\033[0;32m'
@@ -26,46 +27,96 @@ MAX_RETRIES=15
 COUNT=0
 API_READY=false
 while [ $COUNT -lt $MAX_RETRIES ]; do
-    # Try to hit the API
     if kubectl get --raw='/readyz' >/dev/null 2>&1; then
         echo -e "  ${GREEN}✅ API Server is responding and ready${NC}"
         API_READY=true
         break
     else
-        # Troubleshooting: Try a simple ping to see if the host even knows where the VM is
-        # We extract the IP from the kubeconfig
         KUBE_IP=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')
-        
         echo -e "  ${YELLOW}🕒 [$((COUNT+1))/$MAX_RETRIES] Waiting for API ($KUBE_IP)...${NC}"
-        
-        # Check if the route exists at all
         if ! ping -c 1 -W 1 "$KUBE_IP" >/dev/null 2>&1; then
             echo -e "     ⚠️  No network route to $KUBE_IP yet."
         fi
-        
         sleep 4
         ((COUNT++))
     fi
 done
 if [ "$API_READY" = false ]; then
     echo -e "  ${RED}❌ API Server is NOT ready! Giving up after $MAX_RETRIES attempts.${NC}"
-    # If API is down, the rest of the script will fail, so we exit
     exit 1
 fi
 # --- SECTION 3: K8S NODES ---
 echo -e "\n${BOLD}💻 K8s Node Status:${NC}"
-kubectl get nodes -o custom-columns='NAME:.metadata.name,STATUS:.status.conditions[?(@.type=="Ready")].status' | sed 's/True/Ready/g' | sed 's/False/NotReady/g' | sed 's/^/  /'
+kubectl get nodes -o custom-columns='NAME:.metadata.name,STATUS:.status.conditions[?(@.type=="Ready")].status' \
+    | sed 's/True/Ready/g' \
+    | sed 's/False/NotReady/g' \
+    | sed 's/^/  /'
+# --- SECTION 3.5: ENDPOINTS ---
+# Strategy:
+#   - Pull all endpoints across every namespace with -o json
+#   - Use 'jq' to flatten them into "NAMESPACE SERVICE IP PORT" lines
+#   - Skip the <none> / headless entries (no IP assigned yet)
+#   - For each IP:PORT, do a 2-second TCP connect test via curl
+#     curl --connect-timeout is the cleanest cross-platform option;
+#     nc -zw2 is a good fallback if curl isn't available
+echo -e "\n${BOLD}🔌 Endpoints & Connectivity Tests:${NC}"
+# We use --no-headers + custom columns for a quick human-readable summary first
+echo -e "  ${BOLD}--- Endpoint Listing ---${NC}"
+kubectl get endpoints -A --no-headers 2>/dev/null \
+    | awk '{printf "  %-20s %-40s %s\n", $1, $2, $3}' \
+    | sed 's/^/  /'
+# Now the actual testing loop
+echo -e "\n  ${BOLD}--- Connectivity Tests (TCP) ---${NC}"
+# jq extracts a clean stream of: NAMESPACE SERVICE IP PORT
+# We skip entries where .subsets is null (no ready pods behind the service)
+kubectl get endpoints -A -o json 2>/dev/null | jq -r '
+  .items[] |
+  . as $ep |
+  # Guard: skip endpoints with no subsets at all
+  select(.subsets != null) |
+  .subsets[] |
+  . as $sub |
+  # Guard: skip subsets with no addresses (all pods unready)
+  select(.addresses != null) |
+  .addresses[].ip as $ip |
+  .ports[]? |
+  # Emit one line per IP+port combination
+  [$ep.metadata.namespace, $ep.metadata.name, $ip, (.port | tostring)] |
+  join(" ")
+' | while read -r NAMESPACE SVC_NAME IP PORT; do
+    # Skip the kubernetes API endpoint itself — we already checked it above
+    # and curl-testing 443 from inside a node can be noisy
+    if [[ "$SVC_NAME" == "kubernetes" && "$NAMESPACE" == "default" ]]; then
+        echo -e "    ${YELLOW}⏭️  Skipping internal API endpoint: $SVC_NAME ($IP:$PORT)${NC}"
+        continue
+    fi
+    LABEL="${NAMESPACE}/${SVC_NAME} → ${IP}:${PORT}"
+    # --- TCP connectivity test ---
+    # curl's --connect-timeout attempts a TCP handshake only; the 'telnet://'
+    # scheme means it dials the port but sends nothing — safe for any protocol.
+    # Exit code 0  = connected (TCP handshake succeeded)
+    # Exit code 7  = connection refused
+    # Exit code 28 = timed out
+    if curl -s --connect-timeout 2 "telnet://${IP}:${PORT}" >/dev/null 2>&1; then
+        echo -e "    ${GREEN}✅ OPEN   ${LABEL}${NC}"
+    else
+        EXIT_CODE=$?
+        case $EXIT_CODE in
+            7)  STATUS="REFUSED " ; COLOR=$RED    ;;
+            28) STATUS="TIMEOUT " ; COLOR=$YELLOW ;;
+            *)  STATUS="ERROR($EXIT_CODE)" ; COLOR=$RED ;;
+        esac
+        echo -e "    ${COLOR}❌ ${STATUS} ${LABEL}${NC}"
+    fi
+done
 # --- SECTION 4: K8S PODS ---
 echo -e "\n${BOLD}🚨 Problem Pods (All Namespaces):${NC}"
 PROBLEMS=$(kubectl get pods -A --no-headers 2>/dev/null | awk '
 {
-    # Split the READY column (e.g. "2/3") into ready and total
     split($3, ready, "/")
-    
-    not_ready   = (ready[1] != ready[2])
-    bad_status  = ($4 ~ /Completed|CrashLoopBackOff|Error|OOMKilled|ImagePullBackOff|ErrImagePull|Terminating|Pending|Unknown/)
+    not_ready    = (ready[1] != ready[2])
+    bad_status   = ($4 ~ /Completed|CrashLoopBackOff|Error|OOMKilled|ImagePullBackOff|ErrImagePull|Terminating|Pending|Unknown/)
     high_restart = ($5+0 > 3)
-    
     if (not_ready || bad_status || high_restart) print
 }')
 if [ -z "$PROBLEMS" ]; then
@@ -73,8 +124,6 @@ if [ -z "$PROBLEMS" ]; then
 else
     echo -e "  ${RED}${PROBLEMS}${NC}"
 fi
-CMD="kubectl get pods -A --no-headers | grep longhorn"
-#echo "CMD=_${CMD}_" ; eval $CMD
 # --- SECTION 5: METRICS ---
 echo -e "\n${BOLD}📊 K8s Resource Usage:${NC}"
 kubectl top nodes 2>/dev/null | sed 's/^/  /' || echo -e "  ${RED}⚠️  Metrics Server not responding${NC}"
