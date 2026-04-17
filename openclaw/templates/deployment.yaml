@@ -39,6 +39,9 @@ spec:
             chmod 600 /home/node/.openclaw/agents/main/sessions/sessions.json
           fi
           chown -R 1000:1000 /home/node/.openclaw
+          apt update
+          apt install vim
+          update-alternatives --set vi /usr/bin/vim.basic
         volumeMounts:
         - name: config-template
           mountPath: /tmp/config
