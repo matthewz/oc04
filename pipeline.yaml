@@ -184,7 +184,7 @@ steps:
       - init_vault
     script: |
       export VAULT_ADDR=$(cat .vault_addr)
-      export LOCAL_IP=$(cat .local_ip 2>/dev/null || echo "192.168.50.1") 
+      export LOCAL_IP=$(cat .local_ip 2>/dev/null || echo "127.0.0.1") 
       helmfile apply
 #  - name: "demo_source"
 #    script: "./demo"

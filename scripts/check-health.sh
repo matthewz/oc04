@@ -10,8 +10,13 @@ echo -e "${BOLD}=== 🏥 FULL STACK HEALTH CHECK: $(date +%H:%M:%S) ===${NC}"
 # --- SECTION 1: VIRTUAL MACHINES (MULTIPASS) ---
 echo -e "\n${BOLD}🖥️  Multipass Infrastructure:${NC}"
 if command -v multipass &> /dev/null; then
-    multipass list --format table | sed 's/^/  /'
-    read -a nodes <<< $(multipass list | awk 'NR>1 {print $1}')
+    multipass list --format table \
+    | sed 's/^/  /'
+    read -a nodes <<< $(
+    multipass list \
+    | grep Running \
+    | awk 'NR>1 {print $1}'
+    )
     for node in "${nodes[@]}"; do
        multipass exec "$node" -- bash -c \
        "echo -n '   - ' ; hostname ; \

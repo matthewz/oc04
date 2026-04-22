@@ -114,3 +114,19 @@ helm upgrade --install kubernetes-dashboard https://github.com/kubernetes/dashbo
 
 sudo launchctl unload /Library/LaunchDaemons/com.canonical.multipassd.plist
 sudo launchctl load /Library/LaunchDaemons/com.canonical.multipassd.plist
+
+kubectl get pods -l app=oclaw01  -A
+
+kubectl get all -n oclaw01  
+
+kubectl get deployment -n oclaw01 -o yaml | grep -C 10 "name: oclaw01"
+
+kubectl describe deployment oclaw01 -n oclaw01 
+
+kubectl get all -A | grep oclaw
+
+kubectl exec -it -n oclaw01 $(kubectl get pods -A | grep Running | grep oclaw01 | awk '{print $2}') -- /bin/bash 
+
+
+
+

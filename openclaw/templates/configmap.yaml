@@ -6,3 +6,9 @@ metadata:
 data:
   openclaw.json: |
 {{ .Values.rawJsonConfig | indent 4 }}
+  IDENTITY.md: |
+    name: Yeshai
+    nature: AI assistant
+  USER.md: |
+    name: node
+    timezone: ET

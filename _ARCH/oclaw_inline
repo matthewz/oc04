@@ -38,7 +38,7 @@ data:
       "models": {
         "providers": {
           "ollama": {
-            "baseUrl": "http://${LOCAL_IP}:11434/v1",
+            "baseUrl": "http://${LOCAL_IP}:11434",
             "apiKey": "ollama-local",
             "api": "openai-responses",
             "models": [

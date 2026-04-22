@@ -14,7 +14,7 @@
           {
             "id": "llama3.1:8b",
             "name": "Llama 3.1 8B",
-            "contextWindow": 131072
+            "contextWindow": 32768
           },
           {
             "id": "llama3.1:latest",
@@ -59,17 +59,8 @@
     "defaults": {
       "workspace": "/home/node/.openclaw/workspace",
       "model": {
-        "primary": "ollama/llama3.1:latest",
-        "fallbacks": [
-          "ollama/codellama:latest",
-          "ollama/llama3.1:8b",
-          "ollama/llama3.2:latest",
-          "ollama/qwen2.5-coder:14b",
-          "ollama/qwen2.5-coder:32b",
-          "ollama/qwen2.5:14b",
-          "ollama/qwen2.5:14b-instruct-q8_0",
-          "ollama/qwen3:4b"
-        ],
+        "primary": "ollama/qwen2.5-coder:14b",
+        "fallbacks": [] 
       }
     }
   },
@@ -79,6 +70,7 @@
     "port": 18789,
     "auth": {
       "mode": "token",
+      "token": "{{ .Values.gatewayToken }}",
       "rateLimit": {
         "maxAttempts": 30,
         "windowMs": 60000,
@@ -99,6 +91,13 @@
       "mode": "socket",
       "botToken": "",
       "appToken": ""
+    }
+  }, 
+  "tools": {
+    "web": {
+      "search": {
+        "provider": "ollama"
+      }
     }
   }
 }
