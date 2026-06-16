@@ -25,7 +25,9 @@ Some things yet to do
 - Implement backup and restore strategies for "salient data" as part of 'infrastructure' step in pipeline.yaml:
   - in order to make VM's ephemeral and scale oclaw01 as oclaw02, oclaw03, etc...
 - (Re-)Evaluate GitOps for configuration management via [Declarative] Jenkins or some other tool
-- Try to get this working on Windows Hyervisor with just gitbash installed and other generic tools
+- Try to get this working on Windows Hypervisor with just gitbash installed and other generic tools
+- Add Hashicorp Vault for settings secrets
+- Jenkins or harness.io, ArgoCD? 
 
 .
 .
