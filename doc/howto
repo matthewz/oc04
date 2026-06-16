@@ -1,0 +1,138 @@
+###
+
+kubectl rollout restart -n oclaw01 deployment oclaw01
+
+kubectl describe pod -n oclaw01
+
+kubectl logs -n oclaw01 deployment/oclaw01 --previous
+
+kubectl get events -n oclaw01 --sort-by=.metadata.creationTimestamp
+
+grep ^  out/*.txt
+
+kubectl get deployments,pods -n kubernetes-dashboard -n kube-system -l 'k8s-app in (kubernetes-dashboard, metrics-server)'
+
+kubectl get apiservice v1beta1.metrics.k8s.io
+
+watch "kubectl get pods -A -l 'k8s-app in (kubernetes-dashboard, metrics-server)'"
+watch -d "kubectl get pods -A -l 'k8s-app in (kubernetes-dashboard, metrics-server)'"
+watch --color "kubectl get pods"
+
+watch "kubectl get deployments,pods -n kubernetes-dashboard -n kube-system -l 'k8s-app in (kubernetes-dashboard, metrics-server)'"
+
+watch "kubectl get deployments,pods,replicasets -A"
+
+watch "kubectl get pods -A --field-selector=status.phase!=Running"
+
+watch -c ./check-health.sh
+
+watch -n 5 -c ./check-health.sh
+
+multipass exec k8s-master -- sudo journalctl -u containerd -f
+
+helm repo remove kubernetes-dashboard || true
+
+
+set -x
+
+multipass info k8s-master
+
+multipass exec k8s-master -- ls /
+
+multipass exec k8s-master -- sudo kubectl get nodes
+
+set +x
+
+#multipass stop --all
+#multipass start k8s-master
+
+kubectl get secret $(kubectl get serviceaccount kubernetes-dashboard-admin -n kubernetes-dashboard -o jsonpath="{.secrets[0].name}") -n kubernetes-dashboard -o jsonpath="{.data.token}" | base64 --decode
+
+kubectl get events -n kubernetes-dashboard --field-selector type!=Normal --sort-by='.lastTimestamp'
+
+# What does kubelet actually say on the worker?
+multipass exec k8s-worker1 -- sudo journalctl -u kubelet --no-pager -n 50
+# What's actually in the CNI directories?
+multipass exec k8s-worker1 -- sudo ls -la /etc/cni/net.d/
+multipass exec k8s-worker1 -- sudo ls -la /opt/cni/bin/
+# What are the flannel pods doing?
+kubectl get pods -n kube-flannel -o wide
+kubectl logs -n kube-flannel -l app=flannel --prefix=true
+
+# The exact reason for NotReady
+kubectl describe node k8s-worker1 | grep -A 5 "KubeletNotReady\|NetworkPlugin\|message:"
+# Is kubelet still running or did it crash?
+multipass exec k8s-worker1 -- sudo systemctl status kubelet --no-pager
+# The last 20 lines of kubelet log RIGHT NOW
+multipass exec k8s-worker1 -- sudo journalctl -u kubelet --no-pager -n 20
+
+
+
+# Is containerd seeing the CNI config?
+multipass exec k8s-worker1 -- sudo journalctl -u containerd --no-pager -n 30
+# What does containerd think about CNI right now?
+multipass exec k8s-worker1 -- sudo cat /etc/cni/net.d/10-flannel.conflist
+# Try restarting containerd (not just kubelet) to force it to re-read CNI
+multipass exec k8s-worker1 -- sudo systemctl restart containerd
+sleep 5
+multipass exec k8s-worker1 -- sudo systemctl restart kubelet
+sleep 10
+kubectl get nodes
+
+kubectl get pods -A | grep -v Running
+
+kubectl get events -A --sort-by='.lastTimestamp'
+
+kubectl get pods -n kube-system
+
+kubectl top nodes
+
+kubectl get events -A -w
+
+https://kubernetes.io/docs/reference/kubectl/quick-reference/
+
+kubectl get nodes -o jsonpath='{.items[*].status.addresses[?(@.type=="InternalIP")].address}'
+
+# Check pod status
+kubectl get pods -n oclaw01
+
+# Check logs
+kubectl logs -n openclaw deployment/oclaw01 -f
+
+# Check services
+kubectl get svc -n oclaw01
+
+# Debugging commands
+kubectl describe pod -n oclaw01
+kubectl logs -n openclaw deployment/oclaw01 --previous
+kubectl get events -n oclaw01 --sort-by=.metadata.creationTimestamp
+
+helm upgrade --install kubernetes-dashboard https://github.com/kubernetes/dashboard/releases/download/kubernetes-dashboard-7.10.1/kubernetes-dashboard-7.10.1.tgz \
+  --namespace kubernetes-dashboard \
+  --create-namespace \
+  --set api.containers.resources.limits.cpu=200m
+
+sudo launchctl unload /Library/LaunchDaemons/com.canonical.multipassd.plist
+sudo launchctl load /Library/LaunchDaemons/com.canonical.multipassd.plist
+
+kubectl get pods -l app=oclaw01  -A
+
+kubectl get all -n oclaw01  
+
+kubectl get deployment -n oclaw01 -o yaml | grep -C 10 "name: oclaw01"
+
+kubectl describe deployment oclaw01 -n oclaw01 
+
+kubectl get all -A | grep oclaw
+
+kubectl exec -it -n oclaw01 $(kubectl get pods -A | grep Running | grep oclaw01 | awk '{print $2}') -- /bin/bash 
+
+
+1. kubectl get ingress -A: The "Discovery" phase. Finds every entry point across all namespaces.
+2. kubectl get ingress <name> -o jsonpath='...': The "Extraction" phase. It pulls specific data points (Hosts, IP, Service Names) out of the raw YAML without manual searching.
+3. kubectl get ingress <name> --no-headers: The "Parsing" phase. Used specifically to grab the AGE column by targeting the last string in the output.
+4. kubectl get svc <service-name>: The "Verification" phase. Confirms that the Ingress isn't pointing to a "dead end" (a non-existent service).
+5. kubectl describe ingress: The "Internal Audit" phase. (Used by the human to verify why the script sees what it sees). It reveals events and backend endpoint IPs.
+
+
+

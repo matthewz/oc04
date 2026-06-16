@@ -1,0 +1,9 @@
+defaultSettings:
+  replicaSoftAntiAffinity: true
+  storageOverProvisioningPercentage: 500
+  storageMinimalAvailablePercentage: 10
+  defaultReplicaCount: 2
+  backupTarget: "cifs://127.0.0.1/longhorn-backups"
+  backupTargetCredentialSecret: "cifs-secret"
+persistence:
+  defaultClassReplicaCount: 2

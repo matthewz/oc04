@@ -1,0 +1,84 @@
+repositories:
+  - name: longhorn
+    url: https://charts.longhorn.io
+  - name: metrics-server
+    url: https://kubernetes-sigs.github.io/metrics-server/
+  - name: bedag
+    url: https://bedag.github.io/helm-charts/
+  - name: hashicorp
+    url: https://helm.releases.hashicorp.com/
+environments:
+  default:
+    values:
+      - localIp: {{ env "LOCAL_IP" | default "192.168.50.188" }}
+      - ./token
+---
+releases:
+  - name: dashboard
+    namespace: kubernetes-dashboard
+    chart: https://github.com/kubernetes/dashboard/releases/download/kubernetes-dashboard-7.10.1/kubernetes-dashboard-7.10.1.tgz
+    createNamespace: true
+    values:
+      - kong:
+          enabled: true
+        auth:
+          enabled: true
+    installed: true
+  - name: dashboard-admin-rbac
+    namespace: kubernetes-dashboard
+    chart: bedag/raw
+    values:
+      - yaml/dashboard-admin-rbac-values.yaml
+    installed: true
+  - name: metrics-server
+    namespace: kube-system
+    chart: metrics-server/metrics-server
+    values:
+      - containerPort: 4443
+      - args:
+          - --cert-dir=/tmp
+          - --kubelet-insecure-tls 
+          - --kubelet-preferred-address-types=InternalIP
+          - --secure-port=4443
+          - --kubelet-use-node-status-port
+          - --metric-resolution=15s
+    installed: true
+  - name: longhorn
+    namespace: longhorn-system
+    createNamespace: true
+    chart: longhorn/longhorn
+    version: "1.10.2"
+    values:
+      - ./yaml/longhorn-values.yaml
+    hooks:
+      - events: ["presync"]
+        showlogs: true
+        command: "bash"
+        args: ["./cifs_secret.sh"]
+      - events: ["postsync"]       
+        showlogs: true
+        command: "kubectl"
+        args:
+          - "apply"
+          - "-f"
+          - "./yaml/longhorn-jobs.yaml"
+      - events: ["cleanup"]
+        showlogs: true
+        command: "bash"
+        args: 
+          - "-c"
+          - |
+            (
+            set -x
+            kubectl get namespace longhorn-system
+            ) \
+            2>&1
+            set +x
+    installed: true
+  - name: oclaw01
+    namespace: oclaw01
+    chart: ./openclaw
+    createNamespace: true
+    values:
+      - ./openclaw/openclaw.yaml.gotmpl
+    installed: true

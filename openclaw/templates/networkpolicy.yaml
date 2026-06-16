@@ -1,0 +1,71 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.instanceName }}-network-policy
+  namespace: {{ .Values.instanceName }}
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ .Values.instanceName }}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+    # 1. Allow Port-Forwarding (Local)
+    - ports:
+      - protocol: TCP
+        port: {{ .Values.gateway.port }}
+      - protocol: TCP
+        port: 18791
+    # 2. Allow Ingress Controller (REMOVED namespaceSelector for ease of use)
+    - from:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/name: ingress-nginx
+      ports:
+      - protocol: TCP
+        port: {{ .Values.gateway.port }}
+    # 3. Allow pods within the SAME namespace
+    - from:
+      - podSelector:
+          matchLabels:
+            app: {{ .Values.instanceName }}
+      ports:
+      - protocol: TCP
+        port: {{ .Values.gateway.port }}
+  egress:
+    # Allow DNS
+    - to:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: kube-system
+        podSelector:
+          matchLabels:
+            k8s-app: kube-dns
+      ports:
+      - protocol: UDP
+        port: 53
+      - protocol: TCP
+        port: 53
+    # Allow all HTTPS traffic (OpenAI, Slack, etc.)
+    - to:
+      - ipBlock:
+          cidr: 0.0.0.0/0
+      ports:
+      - protocol: TCP
+        port: 443
+    # Allow internal DB
+    - to:
+      - podSelector:
+          matchLabels:
+            app: {{ .Values.instanceName }}-db
+      ports:
+      - protocol: TCP
+        port: 5432
+    # Allow talking to Ollama on the Mac Host
+    - to:
+      - ipBlock:
+          cidr: {{ .Values.localIp }}/32
+      ports:
+      - protocol: TCP
+        port: 11434

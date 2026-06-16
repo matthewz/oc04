@@ -1,0 +1,8 @@
+
+
+# Inside the Python script
+my_env = os.environ.copy()
+my_env["CLUSTER_NAME"] = "dev-west-1"
+subprocess.run(["helmfile", "apply"], env=my_env)
+
+This ensures that the "Brain" (Python) and the "Hands" (Helmfile) are always perfectly in sync.

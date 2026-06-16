@@ -1,0 +1,395 @@
+#### Simple Open Claw infrastructure
+
+export INSTANCE="oclaw01"
+
+. ./token
+
+set -x
+#kubectl delete namespace ${INSTANCE} 2> /dev/null
+kubectl create namespace ${INSTANCE}
+kubectl config set-context --current --namespace=${INSTANCE}
+set +x
+echo ""
+
+#set -x
+#kubectl delete -n ${INSTANCE} configmap ${INSTANCE}-config 2> /dev/null 
+#set +x
+
+###
+echo "🚀 Creating....(nothing)...just a placeholder"
+set -x
+cat <<EOF | kubectl apply -f -
+EOF
+set +x
+echo ""
+
+###
+echo "🚀 Creating Open Claw Configmap..."
+set -x
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${INSTANCE}-config
+  namespace: ${INSTANCE}
+data:
+  openclaw.json: |
+    {
+      "models": {
+        "providers": {
+          "ollama": {
+            "baseUrl": "http://${LOCAL_IP}:11434",
+            "apiKey": "ollama-local",
+            "api": "openai-responses",
+            "models": [
+              {
+                "id": "llama3.1:latest",
+                "name": "Llama 3.1",
+                "contextWindow": 32768,
+              }
+            ]
+          }
+        }
+      },
+      "agents": {
+        "defaults": {
+          "workspace": "/home/node/.openclaw/workspace",
+          "model": {
+            "primary": "ollama/llama3.1:latest"
+          }
+        }
+      },
+      "gateway": {
+        "mode": "local",
+        "bind": "lan",
+        "port": 18789,
+        "auth": {
+          "mode": "token",
+          "rateLimit": {
+            "maxAttempts": 30,
+            "windowMs": 60000,
+            "lockoutMs": 300000
+          }
+        },
+        "controlUi": {
+          "allowedOrigins": ["http://localhost:18789", "http://192.168.1.50:18789", "http://127.0.0.1:18789"]
+        }
+      },
+      "channels": {
+        "slack": {
+          "enabled": true,
+          "mode": "socket",
+          "botToken": "",
+          "appToken": ""
+        }
+      }
+    }
+EOF
+set +x
+echo ""
+
+#echo "Press Enter to continue..." ; read
+
+###
+echo "🚀 Creating Secret..."
+set -x
+cat <<EOF | kubectl apply -f -
+# secrets.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${INSTANCE}-secrets
+  namespace: ${INSTANCE}
+type: Opaque
+stringData:
+  slack-bot-token: "${SLACK_BOT_TOKEN}"
+  slack-app-token: "${SLACK_APP_TOKEN}"
+  gateway-token: "${GATEWAY_TOKEN}"
+EOF
+set +x
+echo ""
+
+#echo "Press Enter to continue..." ; read
+
+###         
+echo "🚀 Creating PVC..."
+set -x
+cat <<EOF | kubectl apply -f -
+# pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: 
+  name: ${INSTANCE}-workspace
+  namespace: ${INSTANCE}
+spec:     
+  accessModes:
+    - ReadWriteOnce
+  resources:  
+    requests:
+      storage: 5Gi
+  storageClassName: longhorn-static
+EOF
+set +x
+echo ""
+
+#echo "Press Enter to continue..." ; read
+
+###
+echo "🚀 Creating Deployment..."
+set -x
+cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${INSTANCE}
+  namespace: ${INSTANCE}
+  labels:
+    app: ${INSTANCE}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ${INSTANCE}
+  strategy:
+    type: Recreate 
+  template:
+    metadata:
+      labels:
+        app: ${INSTANCE}
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroupChangePolicy: "Always"
+
+      initContainers:
+      - name: init-config
+        image: busybox
+        # Use 'root' for the init container so it HAS permission to change ownership/chmod
+        securityContext:
+          runAsUser: 0
+        command: ['sh', '-c']
+        args:
+        - |
+          # Create directories
+          mkdir -p /home/node/.openclaw/credentials
+          mkdir -p /home/node/.openclaw/agents/main/sessions
+          
+          # Copy the config file
+          cp /tmp/config/openclaw.json /home/node/.openclaw/openclaw.json
+          
+          # Set strict permissions (700 = owner only, 600 = owner read/write only)
+          chmod 700 /home/node/.openclaw
+          chmod 700 /home/node/.openclaw/credentials
+          chmod 600 /home/node/.openclaw/openclaw.json
+          
+          # Fix the sessions file if it exists
+          if [ -f /home/node/.openclaw/agents/main/sessions/sessions.json ]; then
+            chmod 600 /home/node/.openclaw/agents/main/sessions/sessions.json
+          fi
+          
+          # Crucial: Give ownership back to the 'node' user (1000)
+          chown -R 1000:1000 /home/node/.openclaw
+        volumeMounts:
+        - name: config-template
+          mountPath: /tmp/config
+        - name: workspace
+          mountPath: /home/node/.openclaw
+
+      containers:
+      - name: ${INSTANCE}
+        image: ghcr.io/openclaw/openclaw:latest
+        ports:
+        - containerPort: 18789
+          name: gateway
+        env:
+        - name: OLLAMA_API_KEY
+          value: "ollama-local"
+        - name: OLLAMA_BASE_URL
+          value: "http://${LOCAL_IP}:11434"
+        - name: NODE_ENV
+          value: "production"
+        - name: SLACK_BOT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: ${INSTANCE}-secrets
+              key: slack-bot-token
+        - name: SLACK_APP_TOKEN        # ADDED THIS: Needed for Socket Mode
+          valueFrom:
+            secretKeyRef:
+              name: ${INSTANCE}-secrets
+              key: slack-app-token
+        - name: GATEWAY_TOKEN # Uses your Secret for the Web UI login
+          valueFrom:
+            secretKeyRef:
+              name: ${INSTANCE}-secrets
+              key: gateway-token
+        - name: OPENCLAW_CONFIG_PATH
+          value: "/home/node/.openclaw/openclaw.json"
+        volumeMounts:
+        - name: workspace
+          mountPath: /home/node/.openclaw
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 18789
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 18789
+          initialDelaySeconds: 15
+          periodSeconds: 5
+      volumes:
+      - name: config-template
+        configMap:
+          name: ${INSTANCE}-config
+          defaultMode: 0600
+      - name: workspace
+        persistentVolumeClaim:
+          claimName: ${INSTANCE}-workspace
+EOF
+set +x
+echo ""
+
+#echo "Press Enter to continue..." ; read
+
+###       
+echo "🚀 Creating Service..."
+cat <<EOF | kubectl apply -f - 
+# service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${INSTANCE}-service
+  namespace: ${INSTANCE}
+  labels:
+    app: ${INSTANCE}
+spec:
+  selector:
+    app: ${INSTANCE}
+  ports:
+  - name: gateway
+    port: 18789
+    targetPort: 18789
+  type: ClusterIP
+EOF
+echo ""   
+
+#echo "Press Enter to continue..." ; read
+
+###
+echo "🚀 Creating Ingress..."
+set -x
+cat <<EOF | kubectl apply -f -
+# ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ${INSTANCE}-ingress
+  namespace: ${INSTANCE}
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    # Add TLS/SSL annotations as needed
+spec:
+  ingressClassName: nginx
+  rules:
+  -  http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ${INSTANCE}-service
+            port:
+              number: 18789
+EOF
+set +x
+echo ""
+
+###
+echo "🚀 Creating NetworkPolicy..."
+set -x
+cat <<EOF | kubectl apply -f -
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ${INSTANCE}-network-policy
+  namespace: ${INSTANCE}
+spec:
+  podSelector:
+    matchLabels:
+      app: ${INSTANCE}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+    # 1. Allow Port-Forwarding (Local)
+    - ports:
+      - protocol: TCP
+        port: 18789
+      - protocol: TCP
+        port: 18791
+    # 2. Allow Ingress Controller (REMOVED namespaceSelector for ease of use)
+    - from:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/name: ingress-nginx
+      ports:
+      - protocol: TCP
+        port: 18789
+    # 3. Allow pods within the SAME namespace
+    - from:
+      - podSelector:
+          matchLabels:
+            app: ${INSTANCE}
+      ports:
+      - protocol: TCP
+        port: 18789
+  egress:
+    # Allow DNS
+    - to:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: kube-system
+        podSelector:
+          matchLabels:
+            k8s-app: kube-dns
+      ports:
+      - protocol: UDP
+        port: 53
+      - protocol: TCP
+        port: 53
+    # Allow all HTTPS traffic (OpenAI, Slack, etc.)
+    - to:
+      - ipBlock:
+          cidr: 0.0.0.0/0
+      ports:
+      - protocol: TCP
+        port: 443
+    # Allow internal DB
+    - to:
+      - podSelector:
+          matchLabels:
+            app: ${INSTANCE}-db
+      ports:
+      - protocol: TCP
+        port: 5432
+    # Allow talking to Ollama on the Mac Host
+    - to:
+      - ipBlock:
+          cidr: 192.168.50.116/32
+      ports:
+      - protocol: TCP
+        port: 11434
+EOF
+set +x
+echo ""

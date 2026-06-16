@@ -1,0 +1,11 @@
+set -x
+sudo -v
+./mac_wrangle.sh
+(date ; time ./k8s-rebuild.sh ; date)         1> k8s-rebuild_out.txt         2>&1 &
+echo "..."
+(date ; time ./setup-k8s-dashboard.sh ; date) 1> setup-k8s-dashboard_out.txt 2>&1 &
+echo "..."
+. ./demo 
+(date ; time ./longhorn-rebuild.sh ; date)    1> longhorn-rebuild_out.txt    2>&1 &
+. ./oclaw
+set +x

@@ -1,0 +1,152 @@
+#### Simple jenkins install 
+
+set -x
+#kubectl delete namespace jenkins
+kubectl create namespace jenkins
+kubectl config set-context --current --namespace=jenkins
+set +x
+echo ""
+
+###
+echo "🚀 Creating....(nothing)...just a placeholder"
+set -x
+cat <<EOF | kubectl apply -f -
+EOF
+set +x
+echo ""
+
+###
+echo "🚀 Creating PVC..."
+set -x
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jenkins-pvc
+  namespace: jenkins
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn      # uses your existing Longhorn
+  resources:
+    requests:
+      storage: 10Gi               # adjust to your needs
+EOF
+set +x
+echo ""
+
+###
+echo "🚀 Creating Service Account..."
+set -x
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jenkins
+  namespace: jenkins
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: jenkins-role
+rules:
+  - apiGroups: [""]
+    resources: ["pods","services","secrets","namespaces"]
+    verbs: ["get","list","watch","create","delete","update"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get","list","watch","create","delete","update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: jenkins-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: jenkins-role
+subjects:
+  - kind: ServiceAccount
+    name: jenkins
+    namespace: jenkins
+EOF
+set +x
+echo ""
+
+###
+echo "🚀 Creating Deployment..."
+set -x
+cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins
+  namespace: jenkins
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jenkins
+  template:
+    metadata:
+      labels:
+        app: jenkins
+    spec:
+      serviceAccountName: jenkins
+      securityContext:
+        fsGroup: 1000            # Jenkins runs as this group
+        runAsUser: 1000
+      containers:
+        - name: jenkins
+          image: jenkins/jenkins:lts
+          ports:
+            - containerPort: 8080  # Web UI
+            - containerPort: 50000 # Agent communication
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          volumeMounts:
+            - name: jenkins-storage
+              mountPath: /var/jenkins_home
+          env:
+            - name: JAVA_OPTS
+              value: "-Xmx1500m"  # memory cap for Java
+      volumes:
+        - name: jenkins-storage
+          persistentVolumeClaim:
+            claimName: jenkins-pvc
+EOF
+set +x
+echo ""
+
+###       
+echo "🚀 Creating Service..."
+set -x      
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: jenkins-service
+  namespace: jenkins
+spec:
+  type: NodePort          # accessible from your Mac Mini
+  selector:
+    app: jenkins
+  ports:
+    - name: web
+      port: 8080
+      targetPort: 8080
+      nodePort: 32000     # you'll use this port to access Jenkins
+    - name: agent
+      port: 50000
+      targetPort: 50000
+      nodePort: 32001
+EOF
+set +x      
+echo ""   
+
+echo "kubectl port-forward -n jenkins svc/jenkins-service 32000:8080 &"

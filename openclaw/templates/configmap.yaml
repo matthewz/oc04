@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.instanceName }}-config
+  namespace: {{ .Values.instanceName }}
+data:
+  openclaw.json: |
+{{ .Values.rawJsonConfig | indent 4 }}
+  IDENTITY.md: |
+    name: Yeshai
+    nature: AI assistant
+  USER.md: |
+    name: node
+    timezone: ET
