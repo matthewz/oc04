@@ -1,3 +1,7 @@
+Sample k8s Cluster
+==================
+Setting up a 3 node cluster for use as a local work environment and try out a pipeline.  
+
 Instructions
 ============
 
